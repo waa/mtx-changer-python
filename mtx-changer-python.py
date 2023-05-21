@@ -101,7 +101,7 @@ from configparser import ConfigParser, BasicInterpolation
 # ------------------
 progname = 'MTX Changer - Python'
 version = '1'
-reldate = 'May 19, 2023'
+reldate = 'May 21, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -111,7 +111,7 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['debug', 'inventory', 'offline', 'vxa_packetloader']
+cfg_file_true_false_lst = ['debug', 'include_import_export', 'inventory', 'offline', 'vxa_packetloader']
 
 # Define the docopt string
 # ------------------------
@@ -122,7 +122,7 @@ Usage:
     mtx-changer-python.py -v | --version
 
 Options:
--C, --config <config>        Configuration file - [default: /mnt/mtx-changer-python/mtx-changer-python.conf]
+-C, --config <config>        Configuration file - [default: /opt/bacula/scripts/mtx-changer-python.conf]
 -S, --section <section>      Section in configuration file [default: DEFAULT]
 
 -h, --help                   Print this help message
@@ -152,22 +152,25 @@ def log(text):
 def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
     if opt == 'config':
-        return '\nThe config file \'' + config_file + '\' does not exist or is not readable.'
-    if opt == 'section':
-        return '\nThe section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
-    if opt == 'conf_version':
-        return '\nThe config file conf_version variable (' + conf_version + ') does not match the script version (' + version + ')'
-    if opt == 'uname':
-        return '\nCould not determine the OS using the \'uname\' utility.'
-    if opt == 'command':
-        return '\nThe command provided (' + mtx_cmd + ') is not a valid command.'
+        error_txt = 'The config file \'' + config_file + '\' does not exist or is not readable.'
+    elif opt == 'section':
+        error_txt = 'The section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
+    elif opt == 'conf_version':
+        error_txt = 'The config file conf_version variable (' + conf_version + ') does not match the script version (' + version + ')'
+    elif opt == 'uname':
+        error_txt = 'Could not determine the OS using the \'uname\' utility.'
+    elif opt == 'command':
+        error_txt = 'The command provided (' + mtx_cmd + ') is not a valid command.'
+    if debug:
+        log(error_txt)
+    return error_txt
 
 def chk_cfg_version ():
     'Check to make sure that the conf_version variable matches script version'
     if conf_version == version:
         return True
     else:
-        print(print_opt_errors('conf_version'))
+        print('\n' + print_opt_errors('conf_version'))
         usage()
 
 def get_shell_result(cmd):
@@ -197,7 +200,7 @@ def get_ready_str():
     elif uname == 'FreeBSD\n':
         return 'Current Driver State: at rest.'
     else:
-        print(print_opt_errors('uname'))
+        print('\n' + print_opt_errors('uname'))
         usage()
 
 def do_loaded():
@@ -217,10 +220,10 @@ def do_loaded():
     # We re.search for drive_index:Full lines and then we return 0
     # if the drive is empty, or the number of the slot that is loaded
     # For the debug log, we also print the volume name and the slot.
+    # TODO: skip the re.search and just get what I need with the 
+    # re.subs
     # ---------------------------------------------------------------
     drive_loaded_line = re.search('Data Transfer Element ' + drive_index + ':Full.*', result.stdout)
-    # If the re.search finds soemthing, it returns True with a re.search object
-    # -------------------------------------------------------------------------
     if drive_loaded_line:
         drive_loaded = re.sub('^Data Transfer Element.*Element (.*) Loaded.*', '\\1', drive_loaded_line.group(0))
         vol_loaded = re.sub('.*:VolumeTag = (.+?) .*', '\\1', drive_loaded_line.group(0))
@@ -280,39 +283,38 @@ def do_list():
     # -----------------------------------------------------------------------
     if inventory:
         do_inventory()
-    # If inventory was successful, or was
-    # not needed, now run the list command
-    # ------------------------------------
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
     if debug:
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
     if result.returncode != 0:
-        log('ERROR calling: ' + cmd)
-        log(result.stdout + result.stderr)
+        if debug:
+            log('ERROR calling: ' + cmd)
+            log(result.stdout + result.stderr)
         sys.exit(result.returncode)
     # Parse the results of the list output and
     # format the way the SD expects to see it.
     # ----------------------------------------
     mtx_elements_txt = ''
-    # First we create a list of only the drives and slots that are full
-    # -----------------------------------------------------------------
-    storage_elements_list = re.findall('Storage Element [0-9]+:Full :.*\w', result.stdout)
-    data_transfer_elements_list = re.findall('Data Transfer Element [0-9]+:Full.*\w', result.stdout)
-    mtx_elements_list = storage_elements_list + data_transfer_elements_list
+    if include_import_export:
+        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
+    storage_elements_list = re.findall('Storage Element \d+:Full :.*\w', result.stdout)
+    data_transfer_elements_list = re.findall('Data Transfer Element \d+:Full.*\w', result.stdout)
+    mtx_elements_list = data_transfer_elements_list + storage_elements_list + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     for element in mtx_elements_list:
-        # re.sub information for full drives first, before any Storage Element re.subs
-        # ----------------------------------------------------------------------------
-        tmp_txt = re.sub('Data Transfer Element [0-9]+:Full \(Storage Element ([0-9]+) Loaded\)', '\\1', element)
+        tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\)', '\\1', element)
         tmp_txt = re.sub('VolumeTag = ', '', tmp_txt)
-        # waa - 20230518 - I can't really see why the packetloader is needed. On our HP Lib
-        #                  in the lab, the output looks like what we are sed/grepping for
-        #                  in the packetloader section. Need more testing...
-        # ---------------------------------------------------------------------------------
+        # waa - 20230518 - I can't really see why the packetloader is needed. I need to
+        #                  find out what the actual text is so I can verify/test this.
+        # Original grep/sed used in mtx-changer bash/perl script vor VXA libraries:
+        # cat ${TMPFILE} | grep " *Storage Element [0-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
+        # -------------------------------------------------------------------------------------------------------------------
         if vxa_packetloader:
-            tmp_txt = re.sub('*Storage Element ', '', tmp_txt)
+            tmp_txt = re.sub(' *Storage Element [0-9]*:.*Full', '', tmp_txt)
             tmp_txt = re.sub('Full :VolumeTag=', '', tmp_txt)
         else:
+            if include_import_export:
+                tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', '\\1:\\2', tmp_txt)
             tmp_txt = re.sub('Storage Element ', '', tmp_txt)
             tmp_txt = re.sub('Full :VolumeTag=', '', tmp_txt)
             mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
@@ -320,17 +322,62 @@ def do_list():
         log('do_list output:\n' + mtx_elements_txt)
     return mtx_elements_txt
 
-def do_getvol():
-    'Get the volume name. If mtx_cmd is transfer we need to return src_vol and dst_vol'
+def do_listall():
+    'Return the list of slots and volumes in the format required by the SD.'
     if debug:
-        log('In function do_getvol')
+        log('In function do_listall')
+    # Does this library require an inventory command before the list command?
+    # -----------------------------------------------------------------------
+    if inventory:
+        do_inventory()
+    cmd = mtx_bin + ' -f ' + chgr_device + ' status'
+    if debug:
+        log('mtx command: ' + cmd)
+    result = get_shell_result(cmd)
+    if result.returncode != 0:
+        if debug:
+            log('ERROR calling: ' + cmd)
+            log(result.stdout + result.stderr)
+        sys.exit(result.returncode)
+    # Parse the results of the list output and
+    # format the way the SD expects to see it.
+    # ----------------------------------------
+    mtx_elements_txt = ''
+    if include_import_export:
+        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT.*\w', result.stdout)
+    storage_elements_list = re.findall('Storage Element \d+:.*\w', result.stdout)
+    data_transfer_elements_list = re.findall('Data Transfer Element \d+:.*\w', result.stdout)
+    mtx_elements_list = data_transfer_elements_list + storage_elements_list + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
+    for element in mtx_elements_list:
+        # re.sub information for Drives, Storage Elements, and Import/Export slots
+        # ------------------------------------------------------------------------
+        tmp_txt = re.sub('Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
+        tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
+        tmp_txt = re.sub('Storage Element (\d+):Empty', 'S:\\1:E', tmp_txt)
+        tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
+        if include_import_export:
+            tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty', 'I:\\1:E', tmp_txt)
+            tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
+        mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
+    if debug:
+        log('do_listall output:\n' + mtx_elements_txt)
+    return mtx_elements_txt
+
+def do_getvolname():
+    'Given a slot (or slot and device in the case of a transfer) return the volume name. If mtx_cmd is transfer we need to return src_vol and dst_vol'
+    if debug:
+        log('In function do_getvolname')
     if mtx_cmd == 'transfer':
-        vol = re.search('[SI]:' + slot + ':.:(.*)', do_listall())
+        # Prevent calling do_listall() twice,
+        # once for src_vol and once for dst_vol
+        # -------------------------------------
+        all_slots = do_listall()
+        vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
         if vol:
             src_vol = vol.group(1)
         else:
             src_vol = ''
-        vol = re.search('[SI]:' + drive_device + ':.:(.*)', do_listall())
+        vol = re.search('[SI]:' + drive_device + ':.:(.*)', all_slots)
         if vol:
             dst_vol = vol.group(1)
         else:
@@ -348,48 +395,6 @@ def do_getvol():
             return vol.group(1)
         else:
             return ''
-
-def do_listall():
-    'Return the list of slots and volumes in the format required by the SD.'
-    if debug:
-        log('In function do_listall')
-    # Does this library require an inventory command before the list command?
-    # -----------------------------------------------------------------------
-    if inventory:
-        do_inventory()
-    # If inventory was successful, or was
-    # not needed, call the status command
-    # -----------------------------------
-    cmd = mtx_bin + ' -f ' + chgr_device + ' status'
-    if debug:
-        log('mtx command: ' + cmd)
-    result = get_shell_result(cmd)
-    if result.returncode != 0:
-        if debug:
-            log('ERROR calling: ' + cmd)
-            log(result.stdout + result.stderr)
-        sys.exit(result.returncode)
-    # Parse the results of the list output and
-    # format the way the SD expects to see it.
-    # ----------------------------------------
-    mtx_elements_txt = ''
-    storage_elements_list = re.findall('Storage Element [0-9]+:.*\w', result.stdout)
-    importexport_elements_list = re.findall('Storage Element [0-9]+ IMPORT.*\w', result.stdout)
-    data_transfer_elements_list = re.findall('Data Transfer Element [0-9]+:.*\w', result.stdout)
-    mtx_elements_list = data_transfer_elements_list + storage_elements_list + importexport_elements_list
-    for element in mtx_elements_list:
-        # re.sub information for drives, Storage Element, and Import/Export re.subs
-        # -------------------------------------------------------------------------
-        tmp_txt = re.sub('Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
-        tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Empty', 'S:\\1:E', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty', 'I:\\1:E', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
-        mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
-    if debug:
-        log('do_listall output:\n' + mtx_elements_txt)
-    return mtx_elements_txt
 
 def wait_for_drive():
     'Wait a maximum of load_wait seconds for the drive to become ready.'
@@ -418,7 +423,7 @@ def wait_for_drive():
             log('Timeout waiting for drive device ' + drive_device + ' (drive index: ' + drive_index + ')'
                 + ' to signal that it is loaded. Perhaps the Device\'s "DriveIndex" is incorrect.')
             log('Exiting with return code 1')
-        return 2
+        return 1
     else:
         if debug:
             log('Successfully loaded drive device ' + drive_device + ' (drive index: ' + drive_index + ') with volume '
@@ -443,9 +448,7 @@ def do_load():
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
-            log('returncode: ' + str(result.returncode))
-            log('stdout: ' + result.stdout)
-            log('stderr: ' + result.stderr)
+            log('Exiting with return code ' + str(result.returncode))
         sys.exit(result.returncode)
     else:
         # Sleep load_sleep seconds after the drive signals it is ready
@@ -485,7 +488,6 @@ def do_unload():
             sleep(int(offline_sleep))
     cmd = mtx_bin + ' -f ' + chgr_device + ' unload ' + slot + ' ' + drive_index
     if debug:
-        print(volume)
         log('Unloading drive device ' + drive_device + ' (drive index: ' + drive_index + ') with volume '
             + ('(' + volume + ') ' if volume is not '' else '') + 'to slot ' + slot + '.')
         log('mtx command: ' + cmd)
@@ -519,7 +521,7 @@ def do_transfer():
     if volume[0] is '' or volume[1] is not '':
        log('This operation will fail!')
        log('Not even going to attempt it!')
-       log('Exiting wuth return code 1')
+       log('Exiting with return code 1')
        sys.exit(1)
     else:
        if debug:
@@ -558,7 +560,7 @@ if args['--config'] != None:
     config_file = args['--config']
     config_section = args['--section']
     if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
-        print(print_opt_errors('config'))
+        print('\n' + print_opt_errors('config'))
         usage()
     else:
         try:
@@ -569,7 +571,7 @@ if args['--config'] != None:
             config_dict = dict(config.items(config_section))
         except Exception as err:
             print('  - An exception with the config file has occurred reading configuration file: ' + str(err))
-            print(print_opt_errors('section'))
+            print('\n' + print_opt_errors('section'))
             sys.exit(1)
 
     # For each key in the config_dict dictionary, make
@@ -627,10 +629,10 @@ if debug:
     log('----------')
 
 # Check to see if the operation should print volume
-# names. If yes, then call the do_getvol function
-# -------------------------------------------------
+# names. If yes, then call the do_getvolname function
+# ---------------------------------------------------
 if mtx_cmd in ('load', 'loaded', 'unload', 'transfer'):
-    volume = do_getvol()
+    volume = do_getvolname()
 
 # Call the appropriate function based on the mtx_cmd
 # --------------------------------------------------
@@ -651,5 +653,6 @@ elif mtx_cmd == 'unload':
 elif mtx_cmd == 'transfer':
    do_transfer()
 else:
-    print(print_opt_errors('command'))
+    print('\n' + print_opt_errors('command'))
     usage()
+
