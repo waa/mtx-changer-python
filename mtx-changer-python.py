@@ -15,8 +15,10 @@
 #                   back to its slot when the cleaning is complete.
 #
 # If you use this script every day and think it is worth anything, I am
-# always grateful to receive donations of any size with Venmo: @waa2k,
-# or PayPal: @billarlofski
+# always grateful to receive donations of any size via:
+# Venmo: @waa2k,
+# or
+# PayPal: @billarlofski
 #
 # The latest version of this script may be found at: https://github.com/waa
 #
@@ -51,7 +53,7 @@
 # ----------------------------------------------------------------------------
 #
 # USER VARIABLES - All user variables should be configured in the config file.
-# See the options -C and -S in the instructions. Because the defaults in this
+# See the options -c and -s in the instructions. Because the defaults in this
 # script may change and more variables may be added over time, it is highly
 # recommended to make use of the config file for customizing the variable
 # settings.
@@ -178,12 +180,18 @@ def chk_cfg_version ():
 
 def get_shell_result(cmd):
     'Given a command to run, return the subprocess.run result'
+    if debug:
+        log('In function get_shell_result')
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     return result
 
 def get_ready_str():
     'Determine the OS so we can set the correct mt "ready" string.'
+    if debug:
+        log('In function get_ready_str')
     cmd = 'uname'
+    if debug:
+        log('shell command: ' + cmd)
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
@@ -191,6 +199,8 @@ def get_ready_str():
     if uname == 'Linux\n':
         if os.path.isfile('/etc/debian_version'):
             cmd = 'mt --version|grep "mt-st"'
+            if debug:
+                log('shell command: ' + cmd)
             result = get_shell_result(cmd)
             if debug:
                 log_cmd_results(result)
@@ -198,6 +208,8 @@ def get_ready_str():
                 return 'drive status'
         else:
             cmd = 'mt --version|grep "GNU cpio"'
+            if debug:
+                log('shell command: ' + cmd)
             result = get_shell_result(cmd)
             if debug:
                 log_cmd_results(result)
@@ -213,7 +225,7 @@ def get_ready_str():
         usage()
 
 def do_loaded():
-    'If the drive is loaded, retund the slot that is in it, otherwise return 0'
+    'If the drive is loaded, return the slot that is in it, otherwise return 0'
     if debug:
         log('In function do_loaded')
         log('Checking if drive index ' + drive_index + ' is loaded.')
@@ -225,8 +237,10 @@ def do_loaded():
         log_cmd_results(result)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
+        # The SD will log this text in the error message after 'Result='
+        # --------------------------------------------------------------
+        print(result.stderr)
         sys.exit(result.returncode)
-
     # We re.search for drive_index:Full lines and then we return 0
     # if the drive is empty, or the number of the slot that is loaded
     # For the debug log, we also print the volume name and the slot.
@@ -240,12 +254,10 @@ def do_loaded():
         if debug:
             log('Drive index ' + drive_index + ' loaded with volume ' + vol_loaded + ' from slot ' + drive_loaded + '.')
             log('do_loaded output: ' + drive_loaded)
-        print(drive_loaded)
         sys.exit(0)
     else:
         if debug:
             log('do_loaded output: 0')
-        print('0')
         sys.exit(0)
 
 def do_slots():
@@ -274,7 +286,7 @@ def do_slots():
 def do_inventory():
     'Call mtx with the inventory command if the inventory variable is True.'
     if debug:
-        log('In function do_ineventory')
+        log('In function do_inventory')
     cmd = mtx_bin + ' -f ' + chgr_device + ' inventory'
     if debug:
         log('mtx command: ' + cmd)
@@ -509,11 +521,15 @@ def do_unload():
     if debug:
         log_cmd_results(result)
     if result.returncode != 0:
+        fail_txt = 'Unsuccessfully unloaded drive device ' + drive_device + ' (drive index: ' + drive_index + ') with volume ' \
+            + ('(' + volume + ') ' if volume is not '' else '') + 'to slot ' + slot + '.'
         if debug:
             log('ERROR calling: ' + cmd)
-            log('Unsuccessfully unloaded drive device ' + drive_device + ' (drive index: ' + drive_index + ') with volume '
-                + ('(' + volume + ') ' if volume is not '' else '') + 'to slot ' + slot + '.')
+            log(fail_txt)
             log('Exiting with return code ' + str(result.returncode))
+        # The SD will print this fail_txt after the 'Result=' in the job log
+        # ------------------------------------------------------------------
+        print(fail_txt)
         sys.exit(result.returncode)
     else:
         if debug:
@@ -523,6 +539,11 @@ def do_unload():
         return result.returncode
 
 def do_transfer():
+    'Transfer from one slot to another.'
+    # The SD will send the destination slot is the 'drive_device' position on the command line
+    # ----------------------------------------------------------------------------------------
+    if debug:
+        log('In function do_transfer')
     cmd = mtx_bin + ' -f ' + chgr_device + ' transfer ' + slot + ' ' + drive_device
     if debug:
         log('Transferring volume ' + ('(' + volume[0] + ') ' if volume[0] is not '' else '(EMPTY) ') + 'from slot '
@@ -615,7 +636,7 @@ jobname = args['<jobname>']
 chk_cfg_version()
 
 # Check the OS to assign the 'ready' variable
-# to know when a drive is loaded and ready
+# to know when a drive is loaded and ready.
 # -------------------------------------------
 ready = get_ready_str()
 
@@ -634,7 +655,7 @@ if debug:
     log('Slot: ' + slot)
     log('----------')
 
-# Check to see if the operation should print volume
+# Check to see if the operation can/should log volume
 # names. If yes, then call the do_getvolname function
 # ---------------------------------------------------
 if mtx_cmd in ('load', 'loaded', 'unload', 'transfer'):
