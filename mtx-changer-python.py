@@ -215,7 +215,7 @@ def get_ready_str():
         usage()
 
 def do_loaded():
-    'Tells if the drive is loaded'
+    'If the drive is loaded, retund the slot that is in it, otherwise return 0'
     if debug:
         log('In function do_loaded')
         log('Checking if drive index ' + drive_index + ' is loaded.')
@@ -225,9 +225,6 @@ def do_loaded():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout:\n' + result.stdout)
-        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
         sys.exit(result.returncode)
@@ -263,13 +260,9 @@ def do_slots():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout:\n' + result.stdout)
-        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
         sys.exit(result.returncode)
-
     # First we re.search for the Storage Changer line, then re.sub for the number of slots
     # Example mtx status output for the 'Storage Changer' line:
     # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
@@ -290,9 +283,6 @@ def do_inventory():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout:\n' + result.stdout)
-        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
         sys.exit(result.returncode)
@@ -312,29 +302,29 @@ def do_list():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout:\n' + result.stdout)
-        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
         sys.exit(result.returncode)
+    # Create lists of only FULL Data Transfer Elements, Storage Elements, and possibly
+    # the Import/Export elements. Then concatenate them into one 'mtx_elements_list' list.
+    # ------------------------------------------------------------------------------------
+    mtx_elements_txt = ''
+    data_transfer_elements_list = re.findall('Data Transfer Element \d+:Full.*\w', result.stdout)
+    storage_elements_list = re.findall('Storage Element \d+:Full :.*\w', result.stdout)
+    if include_import_export:
+        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
+    mtx_elements_list = data_transfer_elements_list + storage_elements_list \
+                      + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     # Parse the results of the list output and
     # format the way the SD expects to see it.
     # ----------------------------------------
-    mtx_elements_txt = ''
-    if include_import_export:
-        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
-    storage_elements_list = re.findall('Storage Element \d+:Full :.*\w', result.stdout)
-    data_transfer_elements_list = re.findall('Data Transfer Element \d+:Full.*\w', result.stdout)
-    mtx_elements_list = data_transfer_elements_list + storage_elements_list + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     for element in mtx_elements_list:
         tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\)', '\\1', element)
         tmp_txt = re.sub('VolumeTag = ', '', tmp_txt)
-        # waa - 20230518 - I can't really see why the packetloader is needed. I need to
-        #                  find out what the actual text is so I can verify/test this.
+        # waa - 20230518 - I need to find out what the actual packetloader text is so I can verify/test this.
         # Original grep/sed used in mtx-changer bash/perl script vor VXA libraries:
-        # cat ${TMPFILE} | grep " *Storage Element [0-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
+        # cat ${TMPFILE} | grep " *Storage Element [1-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
         # -------------------------------------------------------------------------------------------------------------------
         if vxa_packetloader:
             tmp_txt = re.sub(' *Storage Element [0-9]*:.*Full', '', tmp_txt)
@@ -363,25 +353,24 @@ def do_listall():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout:\n' + result.stdout)
-        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
         sys.exit(result.returncode)
+    # Create lists of ALL Data Transfer Elements, Storage Elements, and possibly Import/Export
+    # elements - empty, or full. Then concatenate them into one 'mtx_elements_list' list.
+    # ----------------------------------------------------------------------------------------
+    mtx_elements_txt = ''
+    data_transfer_elements_list = re.findall('Data Transfer Element \d+:.*\w', result.stdout)
+    storage_elements_list = re.findall('Storage Element \d+:.*\w', result.stdout)
+    if include_import_export:
+        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT.*\w', result.stdout)
+    mtx_elements_list = data_transfer_elements_list + storage_elements_list \
+                      + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     # Parse the results of the list output and
     # format the way the SD expects to see it.
     # ----------------------------------------
-    mtx_elements_txt = ''
-    if include_import_export:
-        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT.*\w', result.stdout)
-    storage_elements_list = re.findall('Storage Element \d+:.*\w', result.stdout)
-    data_transfer_elements_list = re.findall('Data Transfer Element \d+:.*\w', result.stdout)
-    mtx_elements_list = data_transfer_elements_list + storage_elements_list + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     for element in mtx_elements_list:
-        # re.sub information for Drives, Storage Elements, and Import/Export slots
-        # ------------------------------------------------------------------------
         tmp_txt = re.sub('Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
         tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
         tmp_txt = re.sub('Storage Element (\d+):Empty', 'S:\\1:E', tmp_txt)
@@ -395,7 +384,9 @@ def do_listall():
     return mtx_elements_txt
 
 def do_getvolname():
-    'Given a slot (or slot and device in the case of a transfer) return the volume name. If mtx_cmd is transfer we need to return src_vol and dst_vol'
+    'Given a slot (or slot and device in the case of a transfer) return the volume name(s).'
+    # If mtx_cmd is transfer we need to return src_vol and dst_vol
+    # ------------------------------------------------------------
     if debug:
         log('In function do_getvolname')
     if mtx_cmd == 'transfer':
@@ -439,9 +430,6 @@ def wait_for_drive():
         result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if debug:
             log_cmd_results(result)
-            # log('returncode: ' + str(result.returncode))
-            # log('stdout:\n' + result.stdout)
-            # log('stderr:\n' + result.stderr)
         if re.search(ready, result.stdout):
             log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready.')
             break
@@ -475,9 +463,6 @@ def do_load():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout: ' + result.stdout)
-        # log('stderr: ' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
@@ -513,9 +498,6 @@ def do_unload():
         result = get_shell_result(cmd)
         if debug:
             log_cmd_results(result)
-            # log('returncode: ' + str(result.returncode))
-            # log('stdout: ' + result.stdout)
-            # log('stderr: ' + result.stderr)
         if int(offline_sleep) != 0:
             if debug:
                 log('Sleeping for \'offline_sleep\' time of ' + offline_sleep + ' seconds to let the drive settle before unloading it.')
@@ -528,9 +510,6 @@ def do_unload():
     result = get_shell_result(cmd)
     if debug:
         log_cmd_results(result)
-        # log('returncode: ' + str(result.returncode))
-        # log('stdout: ' + result.stdout)
-        # log('stderr: ' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
@@ -561,9 +540,6 @@ def do_transfer():
        result = get_shell_result(cmd)
        if debug:
             log_cmd_results(result)
-          # log('returncode: ' + str(result.returncode))
-          # log('stdout: ' + result.stdout)
-          # log('stderr: ' + result.stderr)
        if result.returncode != 0:
            if debug:
                log('ERROR calling: ' + cmd)
