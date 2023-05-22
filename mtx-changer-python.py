@@ -132,15 +132,15 @@ Options:
 
 # Now for some functions
 # ----------------------
+def now():
+    'Return the current date/time in human readable format.'
+    return datetime.today().strftime('%Y-%m-%d %H:%M:%S')
+
 def usage():
     'Show the instructions and script information.'
     print(doc_opt_str)
     print(prog_info_txt)
     sys.exit(1)
-
-def now():
-    'Return the current date/time in human readable format.'
-    return datetime.today().strftime('%Y-%m-%d %H:%M:%S')
 
 def log(text):
     'Given some text, write it to the mtx_log_file.'
@@ -148,6 +148,11 @@ def log(text):
         file.write(now() + ' - ' + ('Job: ' + jobname + ' - ' if jobname not in (None, '*System*') \
         else (jobname + ' - ' if jobname is not None else '')) \
         + (chgr_id + ' - ' if len(chgr_id) != 0 else '') + text + '\n')
+
+def log_cmd_results(result):
+    log('returncode: ' + str(result.returncode))
+    log('stdout:\n' + result.stdout)
+    log('stderr:\n' + result.stderr)
 
 def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
@@ -182,16 +187,22 @@ def get_ready_str():
     'Determine the OS so we can set the correct mt "ready" string.'
     cmd = 'uname'
     result = get_shell_result(cmd)
+    if debug:
+        log_cmd_results(result)
     uname = result.stdout
     if uname == 'Linux\n':
         if os.path.isfile('/etc/debian_version'):
             cmd = 'mt --version|grep "mt-st"'
             result = get_shell_result(cmd)
+            if debug:
+                log_cmd_results(result)
             if result.returncode == 1:
                 return 'drive status'
         else:
             cmd = 'mt --version|grep "GNU cpio"'
             result = get_shell_result(cmd)
+            if debug:
+                log_cmd_results(result)
             if result.returncode == 0:
                 return 'drive status'
         return 'ONLINE'
@@ -212,16 +223,20 @@ def do_loaded():
     if debug:
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
+    if debug:
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout:\n' + result.stdout)
+        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
-        log(result.stdout + result.stderr)
         sys.exit(result.returncode)
 
     # We re.search for drive_index:Full lines and then we return 0
     # if the drive is empty, or the number of the slot that is loaded
     # For the debug log, we also print the volume name and the slot.
-    # TODO: skip the re.search and just get what I need with the 
-    # re.subs
+    # TODO: Maybe skip the re.search and just get what I need with
+    # the re.subs
     # ---------------------------------------------------------------
     drive_loaded_line = re.search('Data Transfer Element ' + drive_index + ':Full.*', result.stdout)
     if drive_loaded_line:
@@ -246,15 +261,19 @@ def do_slots():
     if debug:
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
+    if debug:
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout:\n' + result.stdout)
+        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
-        log(result.stdout + result.stderr)
         sys.exit(result.returncode)
 
     # First we re.search for the Storage Changer line, then re.sub for the number of slots
     # Example mtx status output for the 'Storage Changer' line:
     # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
-    # ----------------------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
     slots = re.sub('^Storage Changer.* Drives, (.*) Slots.*', '\\1', slots_line.group(0))
     if debug:
@@ -269,9 +288,13 @@ def do_inventory():
     if debug:
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
+    if debug:
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout:\n' + result.stdout)
+        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
-        log(result.stdout + result.stderr)
         sys.exit(result.returncode)
     return
 
@@ -287,10 +310,14 @@ def do_list():
     if debug:
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
+    if debug:
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout:\n' + result.stdout)
+        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
-            log(result.stdout + result.stderr)
         sys.exit(result.returncode)
     # Parse the results of the list output and
     # format the way the SD expects to see it.
@@ -334,10 +361,14 @@ def do_listall():
     if debug:
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
+    if debug:
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout:\n' + result.stdout)
+        # log('stderr:\n' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
-            log(result.stdout + result.stderr)
         sys.exit(result.returncode)
     # Parse the results of the list output and
     # format the way the SD expects to see it.
@@ -407,9 +438,10 @@ def wait_for_drive():
             log('mt command: ' + cmd)
         result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if debug:
-            log('returncode: ' + str(result.returncode))
-            log('stdout:\n' + result.stdout)
-            log('stderr:\n' + result.stderr)
+            log_cmd_results(result)
+            # log('returncode: ' + str(result.returncode))
+            # log('stdout:\n' + result.stdout)
+            # log('stderr:\n' + result.stderr)
         if re.search(ready, result.stdout):
             log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready.')
             break
@@ -442,9 +474,10 @@ def do_load():
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
     if debug:
-        log('returncode: ' + str(result.returncode))
-        log('stdout: ' + result.stdout)
-        log('stderr: ' + result.stderr)
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout: ' + result.stdout)
+        # log('stderr: ' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
@@ -465,13 +498,13 @@ def do_unload():
         log('In function do_unload')
     # TODO
     # waa - 202305189 - The 'mt' offline command when issued to a
-    #                   drive that is empty hangs indefinitely - At
-    #                   least on an mhVTL drive.
+    #                   drive that is empty hangs for about 2 minutes.
+    #                   At least on an mhVTL drive.
     #                   This needs to be tested on a real tape drive.
     #                   Maybe a 'loaded' command should be used to
     #                   test first, and skip the offline/unload
     #                   commands if the drive is already empty.
-    # ---------------------- ----------------------------------------
+    # ---------------------- -----------------------------------------
     if offline:
         cmd = mt_bin + ' -f ' + drive_device + ' offline'
         if debug:
@@ -479,9 +512,10 @@ def do_unload():
             log('mtx command: ' + cmd)
         result = get_shell_result(cmd)
         if debug:
-            log('returncode: ' + str(result.returncode))
-            log('stdout: ' + result.stdout)
-            log('stderr: ' + result.stderr)
+            log_cmd_results(result)
+            # log('returncode: ' + str(result.returncode))
+            # log('stdout: ' + result.stdout)
+            # log('stderr: ' + result.stderr)
         if int(offline_sleep) != 0:
             if debug:
                 log('Sleeping for \'offline_sleep\' time of ' + offline_sleep + ' seconds to let the drive settle before unloading it.')
@@ -493,15 +527,13 @@ def do_unload():
         log('mtx command: ' + cmd)
     result = get_shell_result(cmd)
     if debug:
-        log('returncode: ' + str(result.returncode))
-        log('stdout: ' + result.stdout)
-        log('stderr: ' + result.stderr)
+        log_cmd_results(result)
+        # log('returncode: ' + str(result.returncode))
+        # log('stdout: ' + result.stdout)
+        # log('stderr: ' + result.stderr)
     if result.returncode != 0:
         if debug:
             log('ERROR calling: ' + cmd)
-            log('returncode: ' + str(result.returncode))
-            log('stdout: ' + result.stdout)
-            log('stderr: ' + result.stderr)
             log('Unsuccessfully unloaded drive device ' + drive_device + ' (drive index: ' + drive_index + ') with volume '
                 + ('(' + volume + ') ' if volume is not '' else '') + 'to slot ' + slot + '.')
             log('Exiting with return code ' + str(result.returncode))
@@ -528,15 +560,13 @@ def do_transfer():
            log('mtx command: ' + cmd)
        result = get_shell_result(cmd)
        if debug:
-           log('returncode: ' + str(result.returncode))
-           log('stdout: ' + result.stdout)
-           log('stderr: ' + result.stderr)
+            log_cmd_results(result)
+          # log('returncode: ' + str(result.returncode))
+          # log('stdout: ' + result.stdout)
+          # log('stderr: ' + result.stderr)
        if result.returncode != 0:
            if debug:
                log('ERROR calling: ' + cmd)
-               log('returncode: ' + str(result.returncode))
-               log('stdout: ' + result.stdout)
-               log('stderr: ' + result.stderr)
                log('Unsuccessfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] is not '' else '(EMPTY) ') + 'from slot '
                    + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] is not '' else '' ) + '.')
                log('Exiting with return code ' + str(result.returncode))
@@ -594,16 +624,6 @@ if args['--config'] != None:
         # -----------------------
         myvars[k] = config_dict[k]
 
-# Check the version in the config file
-# and compare to sctipt's version variable
-# ----------------------------------------
-chk_cfg_version()
-
-# Check the OS to assign the 'ready' variable
-# to know when a drive is loaded and ready
-# -------------------------------------------
-ready = get_ready_str()
-
 # Assign some variables from args set
 # -----------------------------------
 mtx_cmd = args['<mtx_cmd>']
@@ -612,6 +632,18 @@ drive_device = args['<drive_device>']
 drive_index = args['<drive_index>']
 slot = args['<slot>']
 jobname = args['<jobname>']
+
+# Check the version in the config file
+# and compare to script's version variable
+# Just keeping this for historical reasons
+# I may just remove it altogether.
+# ----------------------------------------
+chk_cfg_version()
+
+# Check the OS to assign the 'ready' variable
+# to know when a drive is loaded and ready
+# -------------------------------------------
+ready = get_ready_str()
 
 # If debug mode is enabled, log all variables to log file
 # -------------------------------------------------------
