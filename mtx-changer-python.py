@@ -117,13 +117,13 @@ cfg_file_true_false_lst = ['debug', 'include_import_export', 'inventory', 'offli
 # ------------------------
 doc_opt_str = """
 Usage:
-    mtx-changer-python.py [-C <config>] [-S <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
+    mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
     mtx-changer-python.py -h | --help
     mtx-changer-python.py -v | --version
 
 Options:
--C, --config <config>        Configuration file - [default: /opt/bacula/scripts/mtx-changer-python.conf]
--S, --section <section>      Section in configuration file [default: DEFAULT]
+-c, --config <config>        Configuration file - [default: /opt/bacula/scripts/mtx-changer-python.conf]
+-s, --section <section>      Section in configuration file [default: DEFAULT]
 
 -h, --help                   Print this help message
 -v, --version                Print the script name and version
@@ -166,8 +166,6 @@ def print_opt_errors(opt):
         error_txt = 'Could not determine the OS using the \'uname\' utility.'
     elif opt == 'command':
         error_txt = 'The command provided (' + mtx_cmd + ') is not a valid command.'
-    if debug:
-        log(error_txt)
     return error_txt
 
 def chk_cfg_version ():
