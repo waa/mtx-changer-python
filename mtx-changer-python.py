@@ -477,6 +477,7 @@ def do_load():
         if debug:
             log('ERROR calling: ' + cmd)
             log('Exiting with return code ' + str(result.returncode))
+        print(result.stderr)
         sys.exit(result.returncode)
     else:
         # Sleep load_sleep seconds after the drive signals it is ready
