@@ -589,18 +589,19 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = None
         log('Successfully unloaded drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') '
             + ('with volume (' + vol + ') ' if vol != '' else '') + 'to slot ' + slt + '.')
         # TODO: After a successful unload, check to see if the tape drive should be cleaned
-        #       We need to iintercept the process here, before we exit from the unload,
+        #       We need to intercept the process here, before we exit from the unload,
         #       otherwise the SD will move on and try to load the next tape.
-        #       Additionally when unloading as cleaning tape, we call do_unload
-        #       with cln = True so we do not end up in any loops - especially if the drive
-        #       still reports it needs cleaning after it has been cleaned.
+        #       Additionally when unloading a cleaning tape, we call do_unload
+        #       with 'cln = True' so we do not end up in any loops - especially if the
+        #       drive still reports it needs cleaning after it has been cleaned.
         # ---------------------------------------------------------------------------------
         if chk_drive and not cln:
             log('The chk_drive variable is True. Calling do_checkdrive() function.')
             checkdrive = do_checkdrive()
             if checkdrive == 1:
-                print('Testing: I think nothing to do here. We could not get sg node, so cannot run tapeinfo,')
-                print('Testing: but the drive has been successfully unloaded, so we need to exit cleanly here.')
+                log('Testing: I think nothing to do here. We could not get sg node, or there are no')
+                log('Testing: cleaning tapes in the library, so cannot run tapeinfo,')
+                log('Testing: but the drive has been successfully unloaded, so we need to exit cleanly here.')
         else:
             log('The chk_drive variable is False. Skipping tapeinfo tests.')
         log('Exiting do_unload (' + vol + ') with return code ' + str(result.returncode))
@@ -630,7 +631,7 @@ def do_transfer():
            log('Exiting with return code ' + str(result.returncode))
            return result.returncode
        else:
-           log('Successfully transferred volume (' + volume[0] + ') from slot ' + slot + ' to slot ' + drive_device + '.')
+           log('Successfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot ' + slot + ' to slot ' + drive_device + '.')
            log('Exiting with return code ' + str(result.returncode))
            return 0
 
