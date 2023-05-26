@@ -114,7 +114,7 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['auto_clean', 'debug', 'include_import_export', 'inventory', 'offline', 'vxa_packetloader']
+cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_export', 'inventory', 'offline', 'vxa_packetloader']
 
 # Initialize these variables to satisfy the
 # defaults in the do_load and do_unload functions.
@@ -132,7 +132,7 @@ Usage:
 Options:
 -c, --config <config>        Configuration file - [default: /opt/bacula/scripts/mtx-changer-python.conf]
 -s, --section <section>      Section in configuration file [default: DEFAULT]
-<mtx_cmd>                    Valid commands are: list, listall, loaded, load, unload, slots, transfer
+<mtx_cmd>                    Valid commands are: slots, list, listall, loaded, load, unload, transfer
 
 -h, --help                   Print this help message
 -v, --version                Print the script name and version
@@ -247,13 +247,15 @@ def do_loaded():
     # ---------------------------------------------------------------
     drive_loaded_line = re.search('Data Transfer Element ' + drive_index + ':Full.*', result.stdout)
     if drive_loaded_line is not None:
-        drive_loaded = re.sub('^Data Transfer Element.*Element (.*) Loaded.*', '\\1', drive_loaded_line.group(0))
-        vol_loaded = re.sub('.*:VolumeTag = (.+?) .*', '\\1', drive_loaded_line.group(0))
-        log('Drive index ' + drive_index + ' loaded with volume ' + vol_loaded + ' from slot ' + drive_loaded + '.')
-        log('loaded output: ' + drive_loaded)
-        return drive_loaded
+        slot_and_vol_loaded = (re.sub('^Data Transfer Element.*Element (\d+) Loaded.*= (\w+)', '\\1 \\2', drive_loaded_line.group(0))).split()
+        slot_loaded = slot_and_vol_loaded[0]
+        vol_loaded = slot_and_vol_loaded[1]
+        log('Drive index ' + drive_index + ' is loaded with volume ' + vol_loaded + ' from slot ' + slot_loaded + '.')
+        log('do_loaded output: ' + slot_loaded)
+        return slot_loaded
     else:
-        log('loaded output: 0')
+        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is empty.')
+        log('do_loaded output: 0')
         return '0'
 
 def do_slots():
@@ -266,12 +268,10 @@ def do_slots():
     if result.returncode != 0:
         log('ERROR calling: ' + cmd)
         sys.exit(result.returncode)
-    # First we re.search for the Storage Changer line, then re.sub for the number of slots
-    # Example mtx status output for the 'Storage Changer' line:
     # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
     # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
-    slots = re.sub('^Storage Changer.* Drives, (.*) Slots.*', '\\1', slots_line.group(0))
+    slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
     log('slots output: ' + slots)
     return slots
 
@@ -318,9 +318,9 @@ def do_list():
         tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\)', '\\1', element)
         tmp_txt = re.sub('VolumeTag = ', '', tmp_txt)
         # waa - 20230518 - I need to find out what the actual packetloader text is so I can verify/test this.
-        # Original grep/sed used in mtx-changer bash/perl script vor VXA libraries:
-        # cat ${TMPFILE} | grep " *Storage Element [1-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
-        # -------------------------------------------------------------------------------------------------------------------
+        # Original grep/sed used in mtx-changer bash/perl script for VXA libraries:
+        # grep " *Storage Element [1-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
+        # ---------------------------------------------------------------------------------------------------
         if vxa_packetloader:
             tmp_txt = re.sub(' *Storage Element [0-9]*:.*Full', '', tmp_txt)
             tmp_txt = re.sub('Full :VolumeTag=', '', tmp_txt)
@@ -378,11 +378,11 @@ def do_getvolname():
     # ------------------------------------------------------------
     log('In function do_getvolname')
     global all_slots
+    # Prevent calling listall() twice,
+    # once for src_vol and once for dst_vol
+    # -------------------------------------
     all_slots = do_listall()
     if mtx_cmd == 'transfer':
-        # Prevent calling listall() twice,
-        # once for src_vol and once for dst_vol
-        # -------------------------------------
         vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
         if vol:
             src_vol = vol.group(1)
@@ -461,13 +461,11 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = None):
         # ----------------------------------------------------------------
         print(fail_txt + ' Err: ' + result.stderr)
         sys.exit(result.returncode)
-    # TODO - If we are loading a cleaning tape, do the
-    # clean_wait waiting here instead of the load_sleep time
-    # ------------------------------------------------------
+    # If we are loading a cleaning tape, do the clean_wait
+    #  waiting here instead of the load_sleep time
+    # ----------------------------------------------------
     if cln:
-        # print('Testing: A cleaning tape was just loaded. This is where we will wait \'clean_wait\' seconds, then unload, and exit.')
         log('A cleaning tape was just loaded. This is where we will wait \'clean_wait\' (' + clean_wait + ') seconds, then unload, and exit.')
-        log('Sleeping fo \'clean_wait\' time of ' + clean_wait + ' seconds for the drive to be cleaned.')
         sleep(int(clean_wait))
         do_unload(slt, drv_dev, drv_idx, vol, cln = True)
     else:
@@ -486,19 +484,19 @@ def do_checkdrive():
     # ----------------------------------------------------------------------------
     cln_tapes = chk_for_cln_tapes()
     if auto_clean and len(cln_tapes) == 0:
-        log('WARN: No cleaning tapes found in library.')
-        log('      Skipping automatic cleaning.')
         # Nothing more to do, exit back to
         # do_unload function that called us
         # ---------------------------------
+        log('WARN: No cleaning tapes found in library.')
+        log('      Skipping automatic cleaning.')
         return
 
     # Next, we need the drive device's /dev/sg# node required by tapeinfo
     # -------------------------------------------------------------------
     sg = do_get_sg_node()
-    if sg == 0:
+    if sg == 1:
         # TODO:
-        # Return to the do_unload function with 0 because
+        # Return to the do_unload function with 1 because
         # we cannot run tapeinfo without an sg node, but the
         # do_unload function that called us has already successfully
         # unloaded the tape before it called us and it needs to exit
@@ -507,7 +505,7 @@ def do_checkdrive():
         #        but auto_clean is enabled... Maybe we exit non zero here to alert the Admin..
         #        need to think about this some more.
         # -------------------------------------------------
-        return
+        return 1
 
     # Call tapeinfo and parse for errors
     # ----------------------------------
@@ -597,18 +595,20 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = None
         #       with cln = True so we do not end up in any loops - especially if the drive
         #       still reports it needs cleaning after it has been cleaned.
         # ---------------------------------------------------------------------------------
-        if chk_drive and not cln :
+        if chk_drive and not cln:
             log('The chk_drive variable is True. Calling do_checkdrive() function.')
             checkdrive = do_checkdrive()
-            if checkdrive == 0:
+            if checkdrive == 1:
                 print('Testing: I think nothing to do here. We could not get sg node, so cannot run tapeinfo,')
                 print('Testing: but the drive has been successfully unloaded, so we need to exit cleanly here.')
+        else:
+            log('The chk_drive variable is False. Skipping tapeinfo tests.')
         log('Exiting do_unload (' + vol + ') with return code ' + str(result.returncode))
     return result.returncode
 
 def do_transfer():
     'Transfer from one slot to another.'
-    # The SD will send the destination slot is the 'drive_device' position on the command line
+    # The SD will send the destination slot in the 'drive_device' position on the command line
     # ----------------------------------------------------------------------------------------
     log('In function do_transfer')
     cmd = mtx_bin + ' -f ' + chgr_device + ' transfer ' + slot + ' ' + drive_device
@@ -635,17 +635,17 @@ def do_transfer():
            return 0
 
 def chk_for_cln_tapes():
-    'return a list of CLNing tapes in the library'
+    'Return a list of cleaning tapes in the library based on the cln_str variable.'
     # Return a list of slots containing cleaning tapes
     # ------------------------------------------------
     log('In function chk_for_cln_tapes')
-    cln_tapes = re.findall('D:\d+:F:(\d+):(CLN.*)', all_slots)
-    cln_tapes += re.findall('[SI]:(\d+):F:(CLN.*)', all_slots)
-    log('Found ' + ('the following cleaning tapes: ' + str(cln_tapes) if len(cln_tapes) != 0 else 'no cleaning tapes'))
+    cln_tapes = re.findall('D:\d+:F:(\d+):(' + cln_str + '.*)', all_slots)
+    cln_tapes += re.findall('[SI]:(\d+):F:(' + cln_str + '.*)', all_slots)
+    log('Found ' + ('the following cleaning tapes: ' + str(cln_tapes) if len(cln_tapes) != 0 else 'no cleaning tapes') + '.')
     return cln_tapes
 
 def do_clean(cln_tapes):
-    'Given the cln_tapes list of available cleaning tapes, pick one and load it.'
+    'Given the cln_tapes list of available cleaning tapes, randomly pick one and load it.'
     log('In function do_clean')
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
@@ -660,9 +660,9 @@ def do_get_sg_node():
     # First, we need to find the '/dev/sgX' node of the drive.
     # I do not want to trust what someone has put into the SD
     # Device's 'ControlDevice =', so I will use `lsscsi` to
-    # correlate the correct one.
+    # identify the correct one.
     # --------------------------------------------------------
-    # In Linux, a Device's 'ArchiveDevice = ' may be specified as '/dev/nstX' or
+    # In Linux, a Device's 'ArchiveDevice = ' may be specified as '/dev/nst#' or
     # '/dev/tape/by-id/scsi-3XXXXXXXX-nst' (the preferred method), so I think we
     # need to try to determine which it is and automatically figure out what field
     # in the `lsscsi` output to match it to. This can get even more fun™ when we
@@ -693,7 +693,6 @@ def do_get_sg_node():
         st = re.sub('.* -> .*/n*(st\d+).*', '\\1', result.stdout.rstrip('\n'))
     # Now we use lsscsi to match to the /dev/sg# node required by tapeinfo
     # --------------------------------------------------------------------
-    lsscsi_bin = 'lsscsi '
     cmd = lsscsi_bin + ' -ug'
     log('lsscsi command: ' + cmd)
     result = get_shell_result(cmd)
@@ -705,7 +704,7 @@ def do_get_sg_node():
         return sg
     else:
         log('Failed to identify an sg node device for drive device ' + drive_device)
-        return 0
+        return 1
 
 # ================
 # BEGIN the script
