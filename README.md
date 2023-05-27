@@ -3,21 +3,22 @@
 
 This script is meant to be automatically called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, or to issue queries to the library to get information.
 
-It is configured in the SD's Autochanger `Changer Command` setting like:
+Please edit the `mtx-changer-python.conf` configuration file to customize what (if anything) gets logged to the debug log file, and to set other custom variables for the library or libraries managed by the SD.
+
+The `mtx-changer-python.py` script is configured in the SD's Autochanger `Changer Command` setting like:
 ```
 Autochanger {
   Name = AutochangerName
-  Description = "Dell autochanger with four drives"
-  ChangerDevice = "/dev/tape/by-id/scsi-xxxxxxxxxxxxx"
+  Description = "Autochanger with four drives"
+  ChangerDevice = "/dev/tape/by-id/scsi-XXXXXXXXXX"
   ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %i %j"    <---- Here
   Device = Drive_0, Drive_1, Drive_2, Drive_3
 }
-
 ```
 
 Where the variables passed are:
 ```
-%c - Library's changer device node. eg: /dev/tape/by-id/scsi-350223344ab001000-nst.
+%c - Library's changer device node. eg: /dev/tape/by-id/scsi-XXXXXXXXXX, or /dev/sgX
 %o - The command. Valid options: slots, list, listall, loaded, load, unload, transfer.
 %S - The one-based library slot to load/unload, or the source slot for the transfer command.
 %a - The drive's "ArchiveDevice". eg: /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
@@ -43,7 +44,7 @@ chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/
 mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
 slot                      The one-based library slot to load/unload, or the source slot for the transfer command.
 drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
-Or, the destination slot for the transfer command.
+                          Or, the destination slot for the transfer command.
 drive_index               The zero-based drive index.
 jobid                     Optional jobid. If present, it will be written after the timestamp to the log file.
 jobname                   Optional job name. If present, it will be written after the timestamp to the log file.
@@ -51,3 +52,6 @@ jobname                   Optional job name. If present, it will be written afte
 -h, --help                Print this help message
 -v, --version             Print the script name and version
 ```
+
+## Example command lines and outputs:
+
