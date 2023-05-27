@@ -71,14 +71,16 @@
 #
 # Options passed must be in the correct order and all <required> options must be passed to the script
 # at start. Bacula's SD will always pass all options specified on the ChangerCommand line even though
-# in some cases, not all of them are needed.
+# in some cases not all of them are needed.
 
 # In the example command line above, we can see that the '-c config' and '-s section' are optional but
 # must come before the other <required> options. The jobid and jobname are also optional and if passed,
 # they must be in the correct order.
 #
-#  By default, the Bacula SD will always call with all of the above arguments, even though
-#  in come cases, not all are used.
+# NOTE: The %i variable is not available as of 20230527. I have an official request with the developers to add this
+# variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
+#
+# By default, the Bacula SD will always call with all of the above arguments, even though in come cases, not all are used.
 #
 #  Valid commands are:
 #  - list      List available volumes in slot:volume format.
@@ -178,7 +180,7 @@ def usage():
     sys.exit(1)
 
 def log(text, level):
-    'Given some text, write it to the mtx_log_file.'
+    'Given some text and a debug level, write the text to the mtx_log_file.'
     if debug:
         if level <= int(debug_level):
             with open(mtx_log_file, 'a+') as file:
@@ -215,7 +217,7 @@ def get_shell_result(cmd):
 def get_ready_str():
     'Determine the OS so we can set the correct mt "ready" string.'
     log('In function: get_ready_str()', 50)
-    cmd = 'uname'
+    cmd = uname_bin
     log('Getting OS so we can set the \'ready\' variable.', 20)
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
@@ -223,14 +225,14 @@ def get_ready_str():
     uname = result.stdout
     if uname == 'Linux\n':
         if os.path.isfile('/etc/debian_version'):
-            cmd = 'mt --version|grep "mt-st"'
+            cmd = mt_bin + ' --version|grep "mt-st"'
             log('shell command: ' + cmd, 30)
             result = get_shell_result(cmd)
             log_cmd_results(result)
             if result.returncode == 1:
                 return 'drive status'
         else:
-            cmd = 'mt --version|grep "GNU cpio"'
+            cmd = mt_bin + ' --version|grep "GNU cpio"'
             log('shell command: ' + cmd, 30)
             result = get_shell_result(cmd)
             if debug:
@@ -440,7 +442,7 @@ def do_wait_for_drive():
     log('In function: do_wait_for_drive()', 50)
     s = 0
     while s <= int(load_wait):
-        log('Waiting for drive to become ready.', 20)
+        log('Waiting a maximum of ' + load_wait + ' seconds for drive to become ready.', 20)
         cmd = mt_bin + ' -f ' + drive_device + ' status'
         log('mt command: ' + cmd, 30)
         result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -465,22 +467,20 @@ def do_wait_for_drive():
 
 def chk_for_cln_tapes():
     'Return a list of cleaning tapes in the library based on the cln_str variable.'
-    # Return a list of slots containing cleaning tapes
-    # ------------------------------------------------
     log('In function: chk_for_cln_tapes()', 50)
     cln_tapes = re.findall('D:\d+:F:(\d+):(' + cln_str + '.*)', all_slots)
     cln_tapes += re.findall('[SI]:(\d+):F:(' + cln_str + '.*)', all_slots)
     if len(cln_tapes) > 0:
-        log('Found ' + ('the following cleaning tapes: ' + str(cln_tapes) if len(cln_tapes) != 0 else 'no cleaning tapes') + '.', 30)
+        log('Found the following cleaning tapes: ' + str(cln_tapes) + '.', 20)
     else:
-        log('No cleaning tapes found in library.', 30)
-        log('Skipping automatic cleaning.', 30)
+        log('No cleaning tapes found in library.', 20)
+        log('Skipping automatic cleaning.', 20)
     return cln_tapes
 
 def do_clean(cln_tapes):
     'Given the cln_tapes list of available cleaning tapes, randomly pick one and load it.'
     log('In function: do_clean()', 50)
-    log('Selecting a cleaning tape.', 30)
+    log('Selecting a cleaning tape.', 20)
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
@@ -527,7 +527,7 @@ def do_get_sg_node():
     elif '/by-path' in drive_device:
         # OK, we caught the /dev/tape/by-path case
         # ----------------------------------------
-        cmd = 'ls -l ' + drive_device
+        cmd = ls_bin + ' -l ' + drive_device
         log('ls command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
