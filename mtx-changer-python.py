@@ -1,28 +1,29 @@
 #!/usr/bin/python3
 #
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # - 20230519 - mtx-changer-python.py v1.0 - Initial release
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 #
 # - 20230519
-# - Bill Arlofski - The purpose of this script will be to add more functionality
-#                   than the original version of this script had. This script
-#                   is a rewrite of the mtx-changer bash/perl script in Python.
-#                   A key additional feature this script will initially provide
-#                   is the ability to automatically detect when a tape drive in
-#                   a library is reporting that it needs to be cleaned, and then
-#                   to load a cleaning tape from a slot to clean the drive, and
-#                   return it back to its slot when the cleaning is complete.
+# - Bill Arlofski - The purpose of this script will be to add more
+#                   functionality than the original mtx-changer script had.
+#                   This script is a rewrite of the mtx-changer bash/perl
+#                   script in Python. A key additional feature this script
+#                   will initially provide is the ability to automatically
+#                   detect when a tape drive in a library is reporting that it
+#                   needs to be cleaned, and then to load a cleaning tape from
+#                   a slot to clean the drive, and return it back to its slot
+#                   when the cleaning is complete.
 #
 # If you use this script every day and think it is worth anything, I am
 # always grateful to receive donations of any size via:
-
+#
 # Venmo: @waa2k,
 # or
 # PayPal: @billarlofski
 #
 # The latest version of this script may be found at: https://github.com/waa
-# -----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #
 # BSD 2-Clause License
 #
@@ -62,8 +63,19 @@
 #
 # Modified notes from the original bash/perl mtx-changer script
 # -------------------------------------------------------------
-# mtx-changer "changer-device" "command" "slot" "archive-device" "drive-index" "job-name"
-#              $1               $2        $3     $4               $5            $6
+# This script is called by the Bacula SD, configured in the Autochanger's ChangerCommand setting like:
+#
+# ChangerCommand = "/mnt/mtx/mtx-changer-python.py -c /mnt/mtx/mtx-changer-python.conf -s library_name %c %o %S %a %d %i %j"
+#
+# ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
+#
+# Options passed must be in the correct order and all <required> options must be passed to the script
+# at start. Bacula's SD will always pass all options specified on the ChangerCommand line even though
+# in some cases, not all of them are needed.
+
+# In the example command line above, we can see that the '-c config' and '-s section' are optional but
+# must come before the other <required> options. The jobid and jobname are also optional and if passed,
+# they must be in the correct order.
 #
 #  By default, the Bacula SD will always call with all of the above arguments, even though
 #  in come cases, not all are used.
@@ -105,7 +117,7 @@ from configparser import ConfigParser, BasicInterpolation
 # ------------------
 progname = 'MTX Changer - Python'
 version = '1.00'
-reldate = 'May 26, 2023'
+reldate = 'May 27, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -122,16 +134,16 @@ cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_e
 # ------------------------------------------------
 slot = drive_device = drv_idx = drive_index = ''
 
-# A list of tapeinfo codes indicating
+# List of tapeinfo codes indicating
 # that a drive needs to be cleaned
-# -----------------------------------
+# ---------------------------------
 cln_codes = ['20', '21']
 
 # Define the docopt string
 # ------------------------
 doc_opt_str = """
 Usage:
-    mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>] [<jobid>]
+    mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
     mtx-changer-python.py -h | --help
     mtx-changer-python.py -v | --version
 
@@ -141,7 +153,7 @@ Options:
 
 chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
 mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
-slot                      Library slot to load/unload, or the source slot for the transfer command.
+slot                      The one-based library slot to load/unload, or the source slot for the transfer command.
 drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
                           Or, the destination slot for the transfer command.
 drive_index               The zero-based drive index.
@@ -170,9 +182,10 @@ def log(text, level):
     if debug:
         if level <= int(debug_level):
             with open(mtx_log_file, 'a+') as file:
-                file.write(now() + ' - ' + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') \
+                file.write(now() + ' - ' + ('JobId: ' + jobid + ' - ' if jobid not in ('', None) else '') \
+                + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') \
                 else (jobname + ' - ' if jobname is not None else '')) \
-                + (chgr_id + ' - ' if len(chgr_id) != 0 else '') + text + '\n')
+                + (chgr_name + ' - ' if len(chgr_name) != 0 else '') + text + '\n')
 
 def log_cmd_results(result):
     log('returncode: ' + str(result.returncode), 40)
@@ -192,14 +205,6 @@ def print_opt_errors(opt):
     elif opt == 'command':
         error_txt = 'The command provided (' + mtx_cmd + ') is not a valid command.'
     return error_txt
-
-def chk_cfg_version ():
-    'Check to make sure that the conf_version variable matches script version'
-    if conf_version == version:
-        return True
-    else:
-        print('\n' + print_opt_errors('conf_version'))
-        usage()
 
 def get_shell_result(cmd):
     'Given a command to run, return the subprocess.run result'
@@ -622,7 +627,7 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False)
     if vol is None:
         vol = volume
     # TODO:
-    # If we are loading a volume form an empty slot, we need
+    # If we are loading a volume from an empty slot, we need
     # to try to get the volume name from a loaded drive too.
     # ------------------------------------------------------
     cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
@@ -699,7 +704,7 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
         log('ERROR calling: ' + cmd, 20)
         fail_txt = 'Failed to unload drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
                  + ('with volume (' + vol + ') ' if vol != '' else '') + 'to slot ' + slt + '.'
-        log(fail_txt, 20)
+        log(fail_txt + ' Err: ' + result.stderr, 20)
         log('Exiting with return code ' + str(result.returncode), 20)
         # The SD will print this stdout after the 'Result=' in the job log
         # ----------------------------------------------------------------
@@ -824,7 +829,7 @@ jobname = args['<jobname>']
 log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
-log('Changer ID: ' + (chgr_id if chgr_id else 'No chgr_id specified'), 10)
+log('Changer ID: ' + (chgr_name if chgr_name else 'No chgr_name specified'), 10)
 log('Job Name: ' + (jobname if jobname is not None else 'No Job Name specified'), 10)
 log('Changer Device: ' + chgr_device, 10)
 log('Drive Device: ' + drive_device, 10)
@@ -832,13 +837,6 @@ log('Command: ' + mtx_cmd, 10)
 log('Drive Index: ' + drive_index, 10)
 log('Slot: ' + slot, 10)
 log('----------', 10)
-
-# Check the version in the config file
-# and compare to script's version variable
-# Just keeping this for historical reasons
-# I may just remove it altogether.
-# ----------------------------------------
-chk_cfg_version()
 
 # Check the OS to assign the 'ready' variable
 # to know when a drive is loaded and ready.
