@@ -1,13 +1,13 @@
 # mtx-changer-python.py
 - A drop-in replacement for Bacula's original `mtx-changer` bash/perl script to control tape libraries but with additional features:
-  - Very clear logging of all actions when debug = True.
-  - The ability to check a drive's `tapeinfo` status after an unload. If the drive requires cleaning, automatically load a cleaning tape, wait, then unload it.
-
-This script is meant to be automatically called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, or to issue queries to the library to get information.
+  - Clear logging of all actions when debug = True.
+  - The ability to check a drive's `tapeinfo` status after an unload and automatically load a cleaning tape, wait, then unload it.
 
 Please edit the `mtx-changer-python.conf` configuration file to customize what (if anything) gets logged to the debug log file, and to set other custom variables for the library or libraries managed by the SD.
 
-The `mtx-changer-python.py` script is configured in the SD's Autochanger `Changer Command` setting like:
+This mtx-changer-python.py script is meant to be called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, or to issue queries to the library to get information.
+
+To use the mtx-changer-python.py script with an autochanger, it must be configured in the SD's Autochanger `Changer Command` setting like:
 ```
 Autochanger {
   Name = AutochangerName
@@ -57,16 +57,16 @@ jobname                   Optional job name. If present, it will be written afte
 
 ### Example command lines and outputs:
 
-Get the number of slots:
+- `slots` Get the number of slots:
 ```
-# ./mtx-changer-python.py /dev/chgr0 slots X Y Z JobId JobName
+# ./mtx-changer-python.py /dev/chgr0 slots X Y Z
 44
 ```
-- The slots command does not care about the slot, drive device, nor drive index, but they must be present.
+The slots command does not care about the slot, drive device, nor drive index (X, Y, Z), but they must be present.
 
-The list command will return a list of full slots in the format slot:volume:
+- `list` will return a list of full slots in the format slot:volume like this:
 ```
-# ./mtx-changer-python.py /dev/chgr0 list X Y Z JobId JobName
+# ./mtx-changer-python.py /dev/chgr0 list X Y Z
 30:G03030TA
 1:G03001TA
 2:G03002TA
@@ -108,11 +108,11 @@ The list command will return a list of full slots in the format slot:volume:
 41:G03031TA
 42:G03032TA
 ```
-- The list command does not care about the slot, drive device, nor drive index, but they must be present.
+The list command does not use the slot, drive device, nor drive index (X, Y, Z), but they must be present.
 
-The listall command will return a list of all slots in different formats depending on whether the location represents a Drive, a Slot, or an Input/Output location, and whether it is full or empty:
+- `listall` will return a list of all slots in the library in different formats depending on whether the location represents a Drive, a Slot, or an Input/Output location, and whether it is full or empty:
 ```
-# ./mtx-changer-python.py /dev/chgr0 listall X Y Z JobId JobName
+# ./mtx-changer-python.py /dev/chgr0 listall X Y Z
 D:0:F:30:G03030TA
 D:1:E
 D:2:E
@@ -162,16 +162,24 @@ I:42:F:G03032TA
 I:43:E
 I:44:E
 ```
-- The listall command does not care about the slot, drive device, nor drive index, but they must be present.
+The listall command does not use the slot, drive device, nor drive index (X, Y, Z), but they must be present.
 
-The load and unload commands do not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0:
+- `load` and `unload` commands do not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to/from a drive, the script simply exits with return code 0, else the return code is 1.
+
+In this example, we load a tape from slot 30 into drive 1 and then unload it:
 ```
 # ./mtx-changer-python.py /root/chgr80 load 30 /dev/tape/by-id/scsi-350223344ab001000-nst 1
 # echo $?
 0
+
+# ./mtx-changer-python.py /root/chgr80 unload 30 /dev/tape/by-id/scsi-350223344ab001000-nst 1
+# echo $?
+0
 ```
 
-The loaded command will return the slot that is loaded in the drive, or zero (0) if the drive is empty:
+- `loaded` will return the slot of the tape that is loaded in the drive, or zero (0) if the drive is empty.
+
+Here we see that drive 0 is empty, and drive 1 is loaded with a tape from slot 30:
 ```
 ./mtx-changer-python.py /root/chgr80 loaded X Y 0    # Drive index 0 is empty.
 0
@@ -179,19 +187,24 @@ The loaded command will return the slot that is loaded in the drive, or zero (0)
 ./mtx-changer-python.py /root/chgr80 loaded X Y 1    # Drive index 1 is loaded with a tape from slot 30
 30
 ```
-The loaded command only cares about the slot and drive index parameters.
+The loaded command does not use the slot and drive device parameters (X, Y) but they must be present.
 
-The transfer command will attempt to transfer a tape from one slot to another.
+- `transfer` will attempt to transfer a tape from one slot to another.
 
-The transfer command does not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0, or it will exit with return code 1 on a failure:
+The transfer command does not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0, or it will exit with return code 1 on a failure.
+
+Here we attempt to transfer a full slot (31) to an empty slot (29) and the command is successful:
 ```
 # ./mtx-changer-python.py -c ./mtx-changer-python.conf /root/chgr80 transfer 31 29 X
 # echo $?
 0
+```
 
+Here we attempt to transfer a now empty slot (31) to a now full slot (29) and the command fails. Notice we have the failure reason printed to stdout. This would be printed in the joblog by the SD:
+```
 # ./mtx-changer-python.py -c ./mtx-changer-python.conf /root/chgr80 transfer 29 31 X
+Err: The source slot is empty, or the destination slot is full. Will not even attempt the transfer
 # echo $?
 1
 ```
-
-The transfer command uses the drive device as the destination slot, and does not care about the drive index, but it must be present.
+The transfer command uses the drive device as the destination slot, and does not use the drive index (X), but it must be present.
