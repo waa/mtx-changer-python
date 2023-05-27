@@ -110,7 +110,7 @@ The list command will return a list of full slots in the format slot:volume:
 ```
 - The list command does not care about the slot, drive device, nor drive index, but they must be present.
 
-The listall command will return a list of all slots in a different formats depending on whether the location represents a Drive, a Slot, or an Input/Output location:
+The listall command will return a list of all slots in different formats depending on whether the location represents a Drive, a Slot, or an Input/Output location, and whether it is full or empty:
 ```
 # ./mtx-changer-python.py /dev/chgr0 listall X Y Z JobId JobName
 D:0:F:30:G03030TA
