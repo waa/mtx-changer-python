@@ -62,9 +62,9 @@ jobname                   Optional job name. If present, it will be written afte
 # ./mtx-changer-python.py /dev/chgr0 slots X Y Z
 44
 ```
-The slots command does not care about the slot, drive device, nor drive index (X, Y, Z), but they must be present.
+The slots command does not use the slot, drive device, nor drive index (X, Y, Z), but they must be present.
 
-- `list` will return a list of full slots in the format slot:volume like this:
+- `list` will return a list of FULL slots in the format 'slot:volume' like this:
 ```
 # ./mtx-changer-python.py /dev/chgr0 list X Y Z
 30:G03030TA
@@ -207,4 +207,4 @@ Err: The source slot is empty, or the destination slot is full. Will not even at
 # echo $?
 1
 ```
-The transfer command uses the drive device as the destination slot, and does not use the drive index (X), but it must be present.
+The transfer command uses the drive device parameter as the destination slot, and does not use the drive index (X), but it must be present.
