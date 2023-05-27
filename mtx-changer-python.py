@@ -512,7 +512,7 @@ def do_get_sg_node():
     # other OSes... So, work in progress here for sure.
     # --------------------------------------------------------------------------
     # drive_device = '/dev/nst0'
-    # drive_device = '/dev/tape/by-id/scsi-350223344ab001200-nst'
+    # drive_device = '/dev/tape/by-id/scsi-350223344ab000900-nst'
     # drive_device = '/dev/tape/by-path/STK-T10000B-XYZZY_B1-nst'
     if '/dev/st' in drive_device or '/dev/nst' in drive_device:
         # OK, we caught the /dev/st# or /dev/nst# case
@@ -534,6 +534,7 @@ def do_get_sg_node():
         # The ls command outputs a line feed that needs to be stripped
         # ------------------------------------------------------------
         st = re.sub('.* -> .*/n*(st\d+).*', '\\1', result.stdout.rstrip('\n'))
+
     # Now we use lsscsi to match to the /dev/sg# node required by tapeinfo
     # --------------------------------------------------------------------
     cmd = lsscsi_bin + ' -ug'
@@ -829,7 +830,8 @@ jobname = args['<jobname>']
 log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
-log('Changer ID: ' + (chgr_name if chgr_name else 'No chgr_name specified'), 10)
+log('Changer Name: ' + (chgr_name if chgr_name else 'No chgr_name specified'), 10)
+log('Job ID: ' + (jobid if jobid is not None else 'No Job ID specified'), 10)
 log('Job Name: ' + (jobname if jobname is not None else 'No Job Name specified'), 10)
 log('Changer Device: ' + chgr_device, 10)
 log('Drive Device: ' + drive_device, 10)
