@@ -748,9 +748,10 @@ def do_transfer():
     log('Transferring volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot '
         + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' ) + '.', 20)
     if volume[0] == '' or volume[1] != '':
-       log('This operation will fail!', 20)
-       log('Not even going to attempt it!', 20)
+       fail_txt = 'The source slot is empty, or the destination slot is full. Will not even attempt the transfer.'
+       log(fail_txt, 20)
        log('Exiting with return code 1', 20)
+       print('Err: ' + fail_txt)
        sys.exit(1)
     else:
        log('mtx command: ' + cmd, 30)
@@ -758,9 +759,13 @@ def do_transfer():
        log_cmd_results(result)
        if result.returncode != 0:
            log('ERROR calling: ' + cmd, 20)
-           log('Unsuccessfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot '
-               + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' ) + '.', 20)
+           fail_txt = 'Unsuccessfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot ' \
+                    + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' ) + '.'
+           log(fail_txt + ' Err: ' + result.stderr.rstrip('\n'), 20)
            log('Exiting with return code ' + str(result.returncode), 20)
+           # The SD will print this stdout after the 'Result=' in the job log
+           # ----------------------------------------------------------------
+           print(fail_txt + ' Err: ' + result.stderr)
            return result.returncode
        else:
            log('Successfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') \
