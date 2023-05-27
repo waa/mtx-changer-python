@@ -64,7 +64,7 @@ Get the number of slots:
 ```
 - The slots command does not care about the slot, drive device, nor drive index, but they must be present.
 
-List full slots:
+The list command will return a list of full slots in the format slot:volume:
 ```
 # ./mtx-changer-python.py /dev/chgr0 list X Y Z JobId JobName
 30:G03030TA
@@ -110,10 +110,10 @@ List full slots:
 ```
 - The list command does not care about the slot, drive device, nor drive index, but they must be present.
 
-Listall slots:
+The listall command will return a list of all slots in a different formats depending on whether the location represents a Drive, a Slot, or an Input/Output location:
 ```
 # ./mtx-changer-python.py /dev/chgr0 listall X Y Z JobId JobName
-D:0:E
+D:0:F:30:G03030TA
 D:1:E
 D:2:E
 D:3:E
@@ -146,7 +146,7 @@ S:26:F:G03026TA
 S:27:F:G03027TA
 S:28:F:G03028TA
 S:29:F:G03029TA
-S:30:F:G03030TA
+S:30:E
 S:31:E
 S:32:E
 S:33:F:G03033TA
