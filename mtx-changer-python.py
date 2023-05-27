@@ -452,7 +452,7 @@ def do_wait_for_drive():
         sleep(1)
         s += 1
     if s == int(load_wait) + 1:
-        log('The maximum \'load_wait\' time of ' + str(load_wait) + ' seconds has been reached.', 20)
+        log('The maximum \'load_wait\' time of ' + load_wait + ' seconds has been reached.', 20)
         log('Timeout waiting for drive device ' + drive_device + ' (drive index: ' + drive_index + ')'
             + ' to signal that it is loaded. Perhaps the Device\'s "DriveIndex" is incorrect.', 20)
         log('Exiting with return code 1', 20)
@@ -502,7 +502,7 @@ def do_get_sg_node():
     # First, we need to find the '/dev/sg#' node of the drive.
     # I do not want to trust what someone has put into the SD
     # Device's 'ControlDevice =', so I will use `lsscsi` to
-    # identify the correct one.
+    # always identify the correct one on-the-fly.
     # --------------------------------------------------------
     # In Linux, a Device's 'ArchiveDevice = ' may be specified as '/dev/nst#' or
     # '/dev/tape/by-id/scsi-3XXXXXXXX-nst' (the preferred method), or even with
