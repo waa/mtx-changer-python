@@ -53,5 +53,141 @@ jobname                   Optional job name. If present, it will be written afte
 -v, --version             Print the script name and version
 ```
 
-## Example command lines and outputs:
+### Example command lines and outputs:
 
+Get the number of slots:
+```
+# ./mtx-changer-python.py /dev/chgr0 slots X Y Z JobId JobName
+44
+```
+- The slots command does not care about the slot, drive device, nor drive index
+
+List full slots:
+```
+# ./mtx-changer-python.py /dev/chgr0 list X Y Z JobId JobName
+30:G03030TA
+1:G03001TA
+2:G03002TA
+3:G03003TA
+4:G03004TA
+5:G03005TA
+6:G03006TA
+7:G03007TA
+8:G03008TA
+9:G03009TA
+10:G03010TA
+11:G03011TA
+12:G03012TA
+13:G03013TA
+14:G03014TA
+15:G03015TA
+16:G03016TA
+17:G03017TA
+18:G03018TA
+19:G03019TA
+20:G03020TA
+21:G03021TA
+22:G03022TA
+23:G03023TA
+24:G03024TA
+25:G03025TA
+26:G03026TA
+27:G03027TA
+28:G03028TA
+29:G03029TA
+33:G03033TA
+34:G03034TA
+35:G03035TA
+36:G03036TA
+37:G03037TA
+38:G03038TA
+39:G03039TA
+40:CLN303TA
+41:G03031TA
+42:G03032TA
+```
+- The list command does not care about the slot, drive device, nor drive index
+
+Listall slots:
+```
+# ./mtx-changer-python.py /dev/chgr0 listall X Y Z JobId JobName
+D:0:E
+D:1:E
+D:2:E
+D:3:E
+S:1:F:G03001TA
+S:2:F:G03002TA
+S:3:F:G03003TA
+S:4:F:G03004TA
+S:5:F:G03005TA
+S:6:F:G03006TA
+S:7:F:G03007TA
+S:8:F:G03008TA
+S:9:F:G03009TA
+S:10:F:G03010TA
+S:11:F:G03011TA
+S:12:F:G03012TA
+S:13:F:G03013TA
+S:14:F:G03014TA
+S:15:F:G03015TA
+S:16:F:G03016TA
+S:17:F:G03017TA
+S:18:F:G03018TA
+S:19:F:G03019TA
+S:20:F:G03020TA
+S:21:F:G03021TA
+S:22:F:G03022TA
+S:23:F:G03023TA
+S:24:F:G03024TA
+S:25:F:G03025TA
+S:26:F:G03026TA
+S:27:F:G03027TA
+S:28:F:G03028TA
+S:29:F:G03029TA
+S:30:F:G03030TA
+S:31:E
+S:32:E
+S:33:F:G03033TA
+S:34:F:G03034TA
+S:35:F:G03035TA
+S:36:F:G03036TA
+S:37:F:G03037TA
+S:38:F:G03038TA
+S:39:F:G03039TA
+S:40:F:CLN303TA
+I:41:F:G03031TA
+I:42:F:G03032TA
+I:43:E
+I:44:E
+```
+- The listall command does not care about the slot, drive device, nor drive index
+
+The load and unload commands do not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0:
+```
+# ./mtx-changer-python.py /root/chgr80 load 30 /dev/tape/by-id/scsi-350223344ab001000-nst 1
+# echo $?
+0
+```
+
+The loaded command will return the slot that is loaded in the drive, or zero (0) if the drive is empty:
+```
+./mtx-changer-python.py /root/chgr80 loaded X Y 0    # Drive index 0 is empty.
+0
+
+./mtx-changer-python.py /root/chgr80 loaded X Y 1    # Drive index 1 is loaded with a tape from slot 30/
+30
+```
+The loaded command only cares about the slot and drive index parameters.
+
+The transfer command will attempt to transfer a tape from one slot to another.
+
+The transfer command does not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0, or it will exit with return code 1 on a failure:
+```
+# ./mtx-changer-python.py -c ./mtx-changer-python.conf /root/chgr80 transfer 31 29 X
+# echo $?
+0
+
+# ./mtx-changer-python.py -c ./mtx-changer-python.conf /root/chgr80 transfer 29 31 X
+# echo $?
+1
+```
