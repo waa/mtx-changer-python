@@ -1,5 +1,7 @@
 # mtx-changer-python.py
-- A drop-in replacement for Bacula's original `mtx-changer` bash/perl script to control tape libraries.
+- A drop-in replacement for Bacula's original `mtx-changer` bash/perl script to control tape libraries but with additional features:
+  - Very clear logging of all actions when debug = True.
+  - The ability to check a drive's `tapeinfo` status after an unload. If the drive requires cleaning, automatically load a cleaning tape, wait, then unload it.
 
 This script is meant to be automatically called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, or to issue queries to the library to get information.
 
@@ -60,7 +62,7 @@ Get the number of slots:
 # ./mtx-changer-python.py /dev/chgr0 slots X Y Z JobId JobName
 44
 ```
-- The slots command does not care about the slot, drive device, nor drive index
+- The slots command does not care about the slot, drive device, nor drive index, but they must be present.
 
 List full slots:
 ```
@@ -106,7 +108,7 @@ List full slots:
 41:G03031TA
 42:G03032TA
 ```
-- The list command does not care about the slot, drive device, nor drive index
+- The list command does not care about the slot, drive device, nor drive index, but they must be present.
 
 Listall slots:
 ```
@@ -160,7 +162,7 @@ I:42:F:G03032TA
 I:43:E
 I:44:E
 ```
-- The listall command does not care about the slot, drive device, nor drive index
+- The listall command does not care about the slot, drive device, nor drive index, but they must be present.
 
 The load and unload commands do not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0:
 ```
@@ -174,7 +176,7 @@ The loaded command will return the slot that is loaded in the drive, or zero (0)
 ./mtx-changer-python.py /root/chgr80 loaded X Y 0    # Drive index 0 is empty.
 0
 
-./mtx-changer-python.py /root/chgr80 loaded X Y 1    # Drive index 1 is loaded with a tape from slot 30/
+./mtx-changer-python.py /root/chgr80 loaded X Y 1    # Drive index 1 is loaded with a tape from slot 30
 30
 ```
 The loaded command only cares about the slot and drive index parameters.
@@ -191,3 +193,5 @@ The transfer command does not log anything except on error, which will be printe
 # echo $?
 1
 ```
+
+The transfer command uses the drive device as the destination slot, and does not care about the drive index, but it must be present.
