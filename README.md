@@ -1,7 +1,8 @@
 # mtx-changer-python.py
-- A drop-in replacement for Bacula's original `mtx-changer` bash/perl script to control tape libraries but with additional features:
+- A drop-in replacement for Bacula's original bash/perl `mtx-changer` script to control tape libraries - Initial enhancements include automatic tape drive cleaning:
   - Clear logging of all actions when debug = True.
-  - The ability to check a drive's `tapeinfo` status after an unload and automatically load a cleaning tape, wait, then unload it.
+  - Control what information gets logged by setting the 'debug_level' variable.
+  - Automatic tape drive cleaning. Can be configured to check a drive's `tapeinfo` status after an unload and automatically load a cleaning tape, wait, then unload it.
 
 Please edit the `mtx-changer-python.conf` configuration file to customize what (if anything) gets logged to the debug log file, and to set other custom variables for the library or libraries managed by the SD.
 
@@ -29,7 +30,7 @@ Where the variables passed are:
 %i - Optional jobid. If present, it will be written after the timestamp to the log file.*
 %j - Optional job name. If present, it will be written after the jobid to the log file.
 ```
-* NOTE: The `%i` variable is not available as of 20230526. I have an official request with the developers to add this variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
+NOTE: The `%i` variable is not available as of 20230526. I have an official request with the developers to add this variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
 
 Instructions on which parameters are optional, which are required, and the order they must appear in:
 ```
@@ -57,7 +58,7 @@ jobname                   Optional job name. If present, it will be written afte
 
 ### Example command lines and outputs:
 
-- `slots` Get the number of slots:
+- `slots` Prints the number of slots to stdout:
 ```
 # ./mtx-changer-python.py /dev/chgr0 slots X Y Z
 44
