@@ -1,5 +1,5 @@
 # mtx-changer-python.py
-- A drop-in replacement for Bacula's original bash/perl `mtx-changer` script to control tape libraries - Initial enhancements include automatic tape drive cleaning:
+- A drop-in replacement for Bacula's original bash/perl `mtx-changer` script to control tape libraries with additional features:
   - Clear logging of all actions when debug = True.
   - Control what information gets logged by setting the 'debug_level' variable.
   - Automatic tape drive cleaning. Can be configured to check a drive's `tapeinfo` status after an unload and automatically load a cleaning tape, wait, then unload it.
