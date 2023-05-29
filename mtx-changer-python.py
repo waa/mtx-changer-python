@@ -465,14 +465,15 @@ def do_wait_for_drive():
 def chk_for_cln_tapes():
     'Return a list of cleaning tapes in the library based on the cln_str variable.'
     log('In function: chk_for_cln_tapes()', 50)
-    # NO... If a cleaning tape is in a drive, we can have no idea
+    # If a cleaning tape is in a drive, we can have no idea
     # where in the cleaning process it is, so we need to ignore
     # cleaning tapes in drives...
     # ----
     # cln_tapes = re.findall('D:\d+:F:(\d+):(' + cln_str + '.*)', all_slots)
     #
-    # TODO if include_import_export:
-    cln_tapes = re.findall('[SI]:(\d+):F:(' + cln_str + '.*)', all_slots)
+    cln_tapes = re.findall('S:(\d+):F:(' + cln_str + '.*)', all_slots)
+    if include_import_export:
+        cln_tapes += re.findall('I:(\d+):F:(' + cln_str + '.*)', all_slots)
     if len(cln_tapes) > 0:
         log('Found the following cleaning tapes: ' + str(cln_tapes) + '.', 20)
     else:
