@@ -255,8 +255,8 @@ def do_loaded():
     log_cmd_results(result)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
-        # The SD will log this text in the error message after 'Result='
-        # --------------------------------------------------------------
+        # The SD will print this stdout after 'Result=' in the job log
+        # ------------------------------------------------------------
         print(result.stderr)
         sys.exit(result.returncode)
     # We re.search for drive_index:Full lines and then we return 0
@@ -322,7 +322,7 @@ def do_list():
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         sys.exit(result.returncode)
-    # Create lists of only FULL Data Transfer Elements, Storage Elements, and possibly
+    # Create lists of only full Data Transfer Elements, Storage Elements, and possibly
     # the Import/Export elements. Then concatenate them into one 'mtx_elements_list' list.
     # ------------------------------------------------------------------------------------
     mtx_elements_txt = ''
@@ -332,9 +332,9 @@ def do_list():
         importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
     mtx_elements_list = data_transfer_elements_list + storage_elements_list \
                       + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
-    # Parse the results of the list output and
-    # format the way the SD expects to see it.
-    # ----------------------------------------
+    # Parse the results of the status output and
+    # format it the way the SD expects to see it.
+    # -------------------------------------------
     for element in mtx_elements_list:
         tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\)', '\\1', element)
         tmp_txt = re.sub('VolumeTag = ', '', tmp_txt)
@@ -357,8 +357,8 @@ def do_list():
 def do_listall():
     'Return the list of slots and volumes in the format required by the SD.'
     log('In function: do_listall()', 50)
-    # Does this library require an inventory command before the list command?
-    # -----------------------------------------------------------------------
+    # Does this library require an inventory command before the status command?
+    # ------------------------------------------------------------------------
     if inventory:
         do_inventory()
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
@@ -368,7 +368,7 @@ def do_listall():
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         sys.exit(result.returncode)
-    # Create lists of ALL Data Transfer Elements, Storage Elements, and possibly Import/Export
+    # Create lists of all Data Transfer Elements, Storage Elements, and possibly Import/Export
     # elements - empty, or full. Then concatenate them into one 'mtx_elements_list' list.
     # ----------------------------------------------------------------------------------------
     mtx_elements_txt = ''
@@ -378,9 +378,9 @@ def do_listall():
         importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT.*\w', result.stdout)
     mtx_elements_list = data_transfer_elements_list + storage_elements_list \
                       + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
-    # Parse the results of the list output and
-    # format the way the SD expects to see it.
-    # ----------------------------------------
+    # Parse the results of the status output and
+    # format it the way the SD expects to see it.
+    # -------------------------------------------
     for element in mtx_elements_list:
         tmp_txt = re.sub('Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
         tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
@@ -465,12 +465,10 @@ def do_wait_for_drive():
 def chk_for_cln_tapes():
     'Return a list of cleaning tapes in the library based on the cln_str variable.'
     log('In function: chk_for_cln_tapes()', 50)
-    # If a cleaning tape is in a drive, we can have no idea
-    # where in the cleaning process it is, so we need to ignore
-    # cleaning tapes in drives...
-    # ----
-    # cln_tapes = re.findall('D:\d+:F:(\d+):(' + cln_str + '.*)', all_slots)
-    #
+    # If a cleaning tape is in a drive, we can have no
+    # idea where in the cleaning process it is, so we
+    # need to ignore cleaning tapes in drives.
+    # ------------------------------------------------
     cln_tapes = re.findall('S:(\d+):F:(' + cln_str + '.*)', all_slots)
     if include_import_export:
         cln_tapes += re.findall('I:(\d+):F:(' + cln_str + '.*)', all_slots)
@@ -488,15 +486,6 @@ def do_clean(cln_tapes):
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
-    # # If we choose a cleaning tape that is in a drive, we need to
-    # # unload it to its slot first, and then load into this drive.
-    # # FIXED: chk_for_cln_tapes only returns cleaning tapes in slots
-    # # now...
-    # # -----------------------------------------------------------
-    # cln_tape_in_drv = re.search('^D:(\d+):F:' + cln_slot, all_slots)
-    # if cln_tape_in_drv:
-    #     log('Whoops! Cleaning tape ' + cln_vol + ' is in a drive (drive index: ' + cln_tape_in_drv[1] + ') Unloading it...', 40)
-    #     do_unload(cln_slot, '', cln_tape_in_drv[1], cln_vol, cln = True)
     log('Will load cleaning tape (' + cln_vol + ') from slot (' + cln_slot \
         + ') into drive device ' + drive_device + ' (drive index: ' + drive_index + ').', 20)
     do_load(cln_slot, drive_device, drive_index, cln_vol, cln = True)
@@ -505,11 +494,11 @@ def do_get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
     log('In function: do_get_sg_node()', 50)
     log('Determining the tape drive\'s /dev/sg# node.', 20)
-    # First, we need to find the '/dev/sg#' node of the drive.
-    # I do not want to trust what someone has put into the SD
-    # Device's 'ControlDevice =', so I will use `lsscsi` to
-    # always identify the correct one on-the-fly.
-    # --------------------------------------------------------
+    # I do not want to trust what is in the the SD Device's
+    # 'ControlDevice =' because it may change after a reboot,
+    # so I will use `lsscsi` to always identify the correct
+    # one on-the-fly.
+    # -------------------------------------------------------
     # In Linux, a Device's 'ArchiveDevice = ' may be specified as '/dev/nst#' or
     # '/dev/tape/by-id/scsi-3XXXXXXXX-nst' (the preferred method), or even with
     # '/dev/tape/by-path/*', so I think we need to try to determine which one
@@ -633,10 +622,6 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False)
         drv_idx = drive_index
     if vol is None:
         vol = volume
-    # TODO:
-    # If we are loading a volume from an empty slot, we need
-    # to try to get the volume name from a loaded drive too.
-    # ------------------------------------------------------
     cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
     log('Loading volume' + (' (' + vol + ')' if vol != '' else '') + ' to drive device ' + drv_dev \
          + ' (drive index: ' + drv_idx + ')' + ' from slot ' + slt + '.', 20)
@@ -649,8 +634,8 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False)
             + ('with volume (' + vol + ') ' if vol != '' else '') + 'from slot ' + slt + '.'
         log(fail_txt + ' Err: ' + result.stderr.rstrip('\n'), 20)
         log('Exiting with return code ' + str(result.returncode), 20)
-        # The SD will print this stdout after the 'Result=' in the job log
-        # ----------------------------------------------------------------
+        # The SD will print this stdout after 'Result=' in the job log
+        # ------------------------------------------------------------
         print(fail_txt + ' Err: ' + result.stderr)
         sys.exit(result.returncode)
     # If we are loading a cleaning tape, do the clean_wait
@@ -713,8 +698,8 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
                  + ('with volume (' + vol + ') ' if vol != '' else '') + 'to slot ' + slt + '.'
         log(fail_txt + ' Err: ' + result.stderr, 20)
         log('Exiting with return code ' + str(result.returncode), 20)
-        # The SD will print this stdout after the 'Result=' in the job log
-        # ----------------------------------------------------------------
+        # The SD will print this stdout after 'Result=' in the job log
+        # ------------------------------------------------------------
         print(fail_txt + ' Err: ' + result.stderr)
     else:
         log('Successfully unloaded volume ' + ('(' + vol + ') ' if vol != '' else '') \
@@ -734,8 +719,8 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
             if checkdrive == 1:
                 # I think there is nothing to do here. We could not get an sg
                 # node, or there are no cleaning tapes in the library, so we
-                # cannot run tapeinfoi but the drive has been successfully
-                # unloaded, so we just need to exit cleanly here.
+                # cannot run tapeinfo but the drive has been successfully
+                # unloaded, so we just need to log and exit cleanly here.
                 # -----------------------------------------------------------
                 log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') + ' with return code ' + str(result.returncode), 20)
                 return 0
@@ -769,8 +754,8 @@ def do_transfer():
                     + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' ) + '.'
            log(fail_txt + ' Err: ' + result.stderr.rstrip('\n'), 20)
            log('Exiting with return code ' + str(result.returncode), 20)
-           # The SD will print this stdout after the 'Result=' in the job log
-           # ----------------------------------------------------------------
+           # The SD will print this stdout after 'Result=' in the job log
+           # ------------------------------------------------------------
            print(fail_txt + ' Err: ' + result.stderr)
            return result.returncode
        else:
