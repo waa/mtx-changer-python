@@ -1,5 +1,5 @@
 # mtx-changer-python.py
-- A drop-in replacement for Bacula's original bash/perl `mtx-changer` script to control tape libraries with additional features:
+- A drop-in replacement for Bacula's original bash/perl `mtx-changer` script to control tape libraries, with additional features:
   - Clear logging of all actions when debug = True.
   - Control what information gets logged by setting the 'debug_level' variable.
   - Automatic tape drive cleaning. Can be configured to check a drive's `tapeinfo` status after an unload and automatically load a cleaning tape, wait, then unload it.
@@ -19,7 +19,7 @@ Autochanger {
 }
 ```
 
-Where the variables passed are:
+Where the variables passed to the mtx-changer-python.py script by the Bacula SD are:
 ```
 %c - Library's changer device node. eg: /dev/tape/by-id/scsi-XXXXXXXXXX, or /dev/sgX
 %o - The command. Valid options: slots, list, listall, loaded, load, unload, transfer.
@@ -165,7 +165,7 @@ I:44:E
 ```
 The listall command does not use the slot, drive device, nor drive index (X, Y, Z), but they must be present.
 
-- `load` and `unload` commands do not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to/from a drive, the script simply exits with return code 0, else the return code is 1.
+- `load` and `unload` commands do not output anything to stdout except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to/from a drive, the script simply exits with return code 0, else the return code is 1.
 
 In this example, we load a tape from slot 30 into drive 1 and then unload it:
 ```
@@ -192,7 +192,7 @@ The loaded command does not use the slot and drive device parameters (X, Y) but 
 
 - `transfer` will attempt to transfer a tape from one slot to another.
 
-The transfer command does not log anything except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0, or it will exit with return code 1 on a failure.
+The transfer command does not output anything to stdout except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0, or it will exit with return code 1 on a failure.
 
 Here we attempt to transfer a full slot (31) to an empty slot (29) and the command is successful:
 ```

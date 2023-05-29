@@ -1,29 +1,70 @@
 #!/usr/bin/python3
 #
-# -----------------------------------------------------------------------------
-# - 20230519 - mtx-changer-python.py v1.0 - Initial release
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+# - mtx-changer-python.py
+# -------------------------------------------------------------------------
 #
-# - 20230519
-# - Bill Arlofski - The purpose of this script will be to add more
-#                   functionality than the original mtx-changer script had.
-#                   This script is a rewrite of the mtx-changer bash/perl
-#                   script in Python. A key additional feature this script
-#                   will initially provide is the ability to automatically
-#                   detect when a tape drive in a library is reporting that it
-#                   needs to be cleaned, and then to load a cleaning tape from
-#                   a slot to clean the drive, and return it back to its slot
-#                   when the cleaning is complete.
+# - 20230529
+# - Bill Arlofski - This script is intended to be a drop-in replacement for
+#                   Bacula's original mtx-changer bash/perl script but with
+#                   more features.
 #
-# If you use this script every day and think it is worth anything, I am
-# always grateful to receive donations of any size via:
+#                 - Initially this script will add the following features:
 #
-# Venmo: @waa2k,
-# or
-# PayPal: @billarlofski
+#                   - Clear logging of all actions when debug = True.
+#                   - Control what information gets logged by setting the
+#                     'debug_level' variable.
+#                   - Automatic tape drive cleaning. Can be configured to
+#                     check a drive's tapeinfo status after an unload and
+#                     automatically load a cleaning tape, wait, then unload
+#                     it.
 #
 # The latest version of this script may be found at: https://github.com/waa
-# ------------------------------------------------------------------------------
+#
+# USER VARIABLES - All user variables should be configured in the config file.
+# See the options -c and -s in the instructions. Because the defaults in this
+# script may change and more variables may be added over time, it is highly
+# recommended to make use of the config file for customizing the variable
+# settings.
+# ---------------------------------------------------------------------------
+#
+# Modified notes from the original bash/perl mtx-changer script
+# -------------------------------------------------------------
+# This script is called by the Bacula SD, configured in the
+# Autochanger's ChangerCommand setting like:
+#
+# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %i %j"
+#
+# ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
+#
+# Options passed must be in the correct order and all <required> options must be passed to the script
+# at start. Bacula's SD will always pass all options specified on the ChangerCommand line even though
+# in some cases not all of them are needed.
+#
+# In the example command line above, we can see that the '-c config' and '-s section' are optional but
+# must come before the other <required> options. The jobid and jobname are also optional and if passed,
+# they must be in the correct order.
+#
+# NOTE: The %i variable is not available as of 20230527. I have an official request with the developers to add this
+# variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
+#
+#  Valid commands are:
+#  - list      List available volumes in slot:volume format.
+#  - listall   List all slots in one of the following formats:
+#              - For Drives:         D:drive index:F:slot:volume - D:0:F:5:G03005TA or for an empty drive:               D:3:E
+#              - For Slots:          S:slot:F:volume             - S:2:F:G03002TA   or for an empty slot:                S:1:E
+#              - For Import/Export:  I:slot:F:volume             - I:41:F:G03029TA  or for am empty import/export slot:  I:42:E
+#  - loaded    Show which slot is loaded in a drive, else 0 if the drive is empty.
+#  - unload    Unload a drive to a slot.
+#  - load      Load a a slot to a drive.
+#  - slots     Show the number of slots in the autochanger.
+#  - transfer  Transfer a volume from one slot to another. In this case, the archive device is the destination slot.
+#
+#  Slots are numbered from 1.
+#  Drives are numbered from 0.
+# ----------------------------------------------------------------------------
+#
+# -------------------------------------------------------------------------
 #
 # BSD 2-Clause License
 #
@@ -52,50 +93,6 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# ----------------------------------------------------------------------------
-#
-# USER VARIABLES - All user variables should be configured in the config file.
-# See the options -c and -s in the instructions. Because the defaults in this
-# script may change and more variables may be added over time, it is highly
-# recommended to make use of the config file for customizing the variable
-# settings.
-# ---------------------------------------------------------------------------
-#
-# Modified notes from the original bash/perl mtx-changer script
-# -------------------------------------------------------------
-# This script is called by the Bacula SD, configured in the Autochanger's ChangerCommand setting like:
-#
-# ChangerCommand = "/mnt/mtx/mtx-changer-python.py -c /mnt/mtx/mtx-changer-python.conf -s library_name %c %o %S %a %d %i %j"
-#
-# ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
-#
-# Options passed must be in the correct order and all <required> options must be passed to the script
-# at start. Bacula's SD will always pass all options specified on the ChangerCommand line even though
-# in some cases not all of them are needed.
-
-# In the example command line above, we can see that the '-c config' and '-s section' are optional but
-# must come before the other <required> options. The jobid and jobname are also optional and if passed,
-# they must be in the correct order.
-#
-# NOTE: The %i variable is not available as of 20230527. I have an official request with the developers to add this
-# variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
-#
-# By default, the Bacula SD will always call with all of the above arguments, even though in come cases, not all are used.
-#
-#  Valid commands are:
-#  - list      List available volumes in slot:volume format.
-#  - listall   List all slots in one of the following formats:
-#              - For Drives:         D:drive index:F:slot:volume - D:0:F:5:G03005TA or for an empty drive:               D:3:E
-#              - For Slots:          S:slot:F:volume             - S:2:F:G03002TA   or for an empty slot:                S:1:E
-#              - For Import/Export:  I:slot:F:volume             - I:41:F:G03029TA  or for am empty import/Export slot:  I:42:E
-#  - loaded    Show which slot is loaded in a drive, else 0 if the drive is empty.
-#  - unload    Unload a drive to a slot.
-#  - load      Load a a slot to a drive.
-#  - slots     Show the number of slots in the autochanger.
-#  - transfer  Transfer a volume from one slot to another. In this case, the archive device is the destination slot.
-#
-#  Slots are numbered from 1.
-#  Drives are numbered from 0.
 # ----------------------------------------------------------------------------
 #
 # ============================================================
@@ -468,8 +465,14 @@ def do_wait_for_drive():
 def chk_for_cln_tapes():
     'Return a list of cleaning tapes in the library based on the cln_str variable.'
     log('In function: chk_for_cln_tapes()', 50)
-    cln_tapes = re.findall('D:\d+:F:(\d+):(' + cln_str + '.*)', all_slots)
-    cln_tapes += re.findall('[SI]:(\d+):F:(' + cln_str + '.*)', all_slots)
+    # NO... If a cleaning tape is in a drive, we can have no idea
+    # where in the cleaning process it is, so we need to ignore
+    # cleaning tapes in drives...
+    # ----
+    # cln_tapes = re.findall('D:\d+:F:(\d+):(' + cln_str + '.*)', all_slots)
+    #
+    # TODO if include_import_export:
+    cln_tapes = re.findall('[SI]:(\d+):F:(' + cln_str + '.*)', all_slots)
     if len(cln_tapes) > 0:
         log('Found the following cleaning tapes: ' + str(cln_tapes) + '.', 20)
     else:
@@ -484,13 +487,15 @@ def do_clean(cln_tapes):
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
-    # If we chose a cleaning tape that is in a drive, we need to
-    # unload it to its slot first, and then load into this drive.
-    # -----------------------------------------------------------
-    cln_tape_in_drv = re.search('^D:(\d+):F:' + cln_slot, all_slots)
-    if cln_tape_in_drv:
-        log('Whoops! Cleaning tape ' + cln_vol + ' is in a drive (drive index: ' + cln_tape_in_drv[1] + ') Unloading it...', 40)
-        do_unload(cln_slot, '', cln_tape_in_drv[1], cln_vol, cln = True)
+    # # If we choose a cleaning tape that is in a drive, we need to
+    # # unload it to its slot first, and then load into this drive.
+    # # FIXED: chk_for_cln_tapes only returns cleaning tapes in slots
+    # # now...
+    # # -----------------------------------------------------------
+    # cln_tape_in_drv = re.search('^D:(\d+):F:' + cln_slot, all_slots)
+    # if cln_tape_in_drv:
+    #     log('Whoops! Cleaning tape ' + cln_vol + ' is in a drive (drive index: ' + cln_tape_in_drv[1] + ') Unloading it...', 40)
+    #     do_unload(cln_slot, '', cln_tape_in_drv[1], cln_vol, cln = True)
     log('Will load cleaning tape (' + cln_vol + ') from slot (' + cln_slot \
         + ') into drive device ' + drive_device + ' (drive index: ' + drive_index + ').', 20)
     do_load(cln_slot, drive_device, drive_index, cln_vol, cln = True)
