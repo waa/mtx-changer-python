@@ -116,7 +116,7 @@ from configparser import ConfigParser, BasicInterpolation
 # ------------------
 progname = 'MTX Changer - Python'
 version = '1.00'
-reldate = 'May 27, 2023'
+reldate = 'May 29, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -215,7 +215,7 @@ def get_ready_str():
     'Determine the OS so we can set the correct mt "ready" string.'
     log('In function: get_ready_str()', 50)
     cmd = uname_bin
-    log('Getting OS so we can set the \'ready\' variable.', 20)
+    log('Getting OS so we can set the \'ready\' variable.', 40)
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
@@ -223,14 +223,14 @@ def get_ready_str():
     if uname == 'Linux\n':
         if os.path.isfile('/etc/debian_version'):
             cmd = mt_bin + ' --version|grep "mt-st"'
-            log('shell command: ' + cmd, 30)
+            log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
             log_cmd_results(result)
             if result.returncode == 1:
                 return 'drive status'
         else:
             cmd = mt_bin + ' --version|grep "GNU cpio"'
-            log('shell command: ' + cmd, 30)
+            log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
             if debug:
                 log_cmd_results(result)
@@ -493,7 +493,7 @@ def do_clean(cln_tapes):
 def do_get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
     log('In function: do_get_sg_node()', 50)
-    log('Determining the tape drive\'s /dev/sg# node.', 20)
+    log('Determining the tape drive\'s /dev/sg# node required by tapeinfo.', 20)
     # I do not want to trust what is in the the SD Device's
     # 'ControlDevice =' because it may change after a reboot,
     # so I will use `lsscsi` to always identify the correct
