@@ -186,8 +186,8 @@ def log(text, level):
 
 def log_cmd_results(result):
     log('returncode: ' + str(result.returncode), 40)
-    log('stdout:\n' + result.stdout, 40)
-    log('stderr:\n' + result.stderr, 40)
+    log('stdout: ' + result.stdout.rstrip('\n'), 40)
+    log('stderr: ' + result.stderr.rstrip('\n'), 40)
 
 def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
