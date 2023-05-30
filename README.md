@@ -14,7 +14,7 @@ Autochanger {
   Name = AutochangerName
   Description = "Autochanger with four drives"
   ChangerDevice = "/dev/tape/by-id/scsi-XXXXXXXXXX"
-  ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %i %j"    <---- Here
+  ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %j"    <---- Here
   Device = Drive_0, Drive_1, Drive_2, Drive_3
 }
 ```
@@ -27,15 +27,13 @@ Where the variables passed to the mtx-changer-python.py script by the Bacula SD 
 %a - The drive's "ArchiveDevice". eg: /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
      Or, the destination slot for the transfer command.
 %d - The zero-based drive index.
-%i - Optional jobid. If present, it will be written after the timestamp to the log file.*
-%j - Optional job name. If present, it will be written after the jobid to the log file.
+%j - Optional job name. If present, it will be written to the log file after the timestamp.
 ```
-NOTE: The `%i` variable is not available as of 20230526. I have an official request with the developers to add this variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
 
 Instructions on which parameters are optional, which are required, and the order they must appear in:
 ```
 Usage:
-mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
+mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
 mtx-changer-python.py -h | --help
 mtx-changer-python.py -v | --version
 
@@ -49,7 +47,6 @@ slot                      The one-based library slot to load/unload, or the sour
 drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
                           Or, the destination slot for the transfer command.
 drive_index               The zero-based drive index.
-jobid                     Optional jobid. If present, it will be written after the timestamp to the log file.
 jobname                   Optional job name. If present, it will be written after the timestamp to the log file.
 
 -h, --help                Print this help message
