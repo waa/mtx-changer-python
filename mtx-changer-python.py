@@ -35,15 +35,15 @@
 #
 # ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %i %j"
 #
-# ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
+# ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
 #
 # Options passed must be in the correct order and all <required> options must be passed to the script
 # at start. Bacula's SD will always pass all options specified on the ChangerCommand line even though
 # in some cases not all of them are needed.
 #
 # In the example command line above, we can see that the '-c config' and '-s section' are optional but
-# must come before the other <required> options. The jobid and jobname are also optional and if passed,
-# they must be in the correct order.
+# must come before the other <required> options. The jobname is also optional and if passed,
+# it must after the other options.
 #
 # NOTE: The %i variable is not available as of 20230527. I have an official request with the developers to add this
 # variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
@@ -116,7 +116,7 @@ from configparser import ConfigParser, BasicInterpolation
 # ------------------
 progname = 'MTX Changer - Python'
 version = '1.00'
-reldate = 'May 29, 2023'
+reldate = 'May 30, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -142,7 +142,7 @@ cln_codes = ['20', '21']
 # ------------------------
 doc_opt_str = """
 Usage:
-    mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobid>] [<jobname>]
+    mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
     mtx-changer-python.py -h | --help
     mtx-changer-python.py -v | --version
 
@@ -156,7 +156,6 @@ slot                      The one-based library slot to load/unload, or the sour
 drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
                           Or, the destination slot for the transfer command.
 drive_index               The zero-based drive index.
-jobid                     Optional jobid. If present, it will be written after the timestamp to the log file.
 jobname                   Optional job name. If present, it will be written after the timestamp to the log file.
 
 -h, --help                Print this help message
@@ -181,10 +180,9 @@ def log(text, level):
     if debug:
         if level <= int(debug_level):
             with open(mtx_log_file, 'a+') as file:
-                file.write(now() + ' - ' + ('JobId: ' + jobid + ' - ' if jobid not in ('', None) else '') \
-                + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') \
-                else (jobname + ' - ' if jobname is not None else '')) \
-                + (chgr_name + ' - ' if len(chgr_name) != 0 else '') + text + '\n')
+                file.write(now() + ' - ' + (chgr_name + ' - ' if len(chgr_name) != 0 else '') \
+                + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') else (jobname \
+                + ' - ' if jobname is not None else '')) + text + '\n')
 
 def log_cmd_results(result):
     log('returncode: ' + str(result.returncode), 40)
@@ -438,8 +436,8 @@ def do_wait_for_drive():
     'Wait a maximum of load_wait seconds for the drive to become ready.'
     log('In function: do_wait_for_drive()', 50)
     s = 0
+    log('Waiting a maximum of ' + load_wait + ' seconds for drive to become ready.', 20)
     while s <= int(load_wait):
-        log('Waiting a maximum of ' + load_wait + ' seconds for drive to become ready.', 20)
         cmd = mt_bin + ' -f ' + drive_device + ' status'
         log('mt command: ' + cmd, 30)
         result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -552,15 +550,16 @@ def do_checkdrive():
     log('In function: do_checkdrive()', 50)
     # First, we need to check and see if we have any cleaning tapes in the library
     # ----------------------------------------------------------------------------
-    cln_tapes = chk_for_cln_tapes()
-    if auto_clean and len(cln_tapes) == 0:
-        # Return to the do_unload function with 1 because we cannot clean a
-        # drive device without a cleaning tape, but the do_unload function that
-        # called us has already successfully unloaded the tape before it called
-        # us and it needs to exit cleanly so the SD sees a 0 return code and
-        # can continue.
-        # ---------------------------------------------------------------------
-        return 1
+    if auto_clean:
+        cln_tapes = chk_for_cln_tapes()
+        if len(cln_tapes) == 0:
+            # Return to the do_unload function with 1 because we cannot clean a
+            # drive device without a cleaning tape, but the do_unload function that
+            # called us has already successfully unloaded the tape before it called
+            # us and it needs to exit cleanly so the SD sees a 0 return code and
+            # can continue.
+            # ---------------------------------------------------------------------
+            return 1
 
     # Next, we need the drive device's /dev/sg# node required by tapeinfo
     # -------------------------------------------------------------------
@@ -577,7 +576,7 @@ def do_checkdrive():
     # Call tapeinfo and parse for alerts
     # ----------------------------------
     cmd = tapeinfo_bin + ' -f ' + sg
-    log('Checking drive with tapeinfo utility.', 20)
+    log('Checking drive (sg node: ' + sg + ') with tapeinfo utility.', 20)
     log('tapeinfo command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
@@ -818,7 +817,6 @@ chgr_device = args['<chgr_device>']
 drive_device = args['<drive_device>']
 drive_index = args['<drive_index>']
 slot = args['<slot>']
-jobid = args['<jobid>']
 jobname = args['<jobname>']
 
 # If debug is enabled, log all variables to log file
@@ -827,7 +825,6 @@ log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
 log('Changer Name: ' + (chgr_name if chgr_name else 'No chgr_name specified'), 10)
-log('Job ID: ' + (jobid if jobid is not None else 'No Job ID specified'), 10)
 log('Job Name: ' + (jobname if jobname is not None else 'No Job Name specified'), 10)
 log('Changer Device: ' + chgr_device, 10)
 log('Drive Device: ' + drive_device, 10)
