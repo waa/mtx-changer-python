@@ -126,7 +126,8 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_export', 'inventory', 'offline', 'vxa_packetloader']
+cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_export',
+                           'inventory', 'log_cfg_vars', 'offline', 'vxa_packetloader']
 
 # Initialize these variables to satisfy the
 # defaults in the do_load and do_unload functions.
@@ -814,8 +815,10 @@ drive_index = args['<drive_index>']
 slot = args['<slot>']
 jobname = args['<jobname>']
 
-# If debug is enabled, log all variables to log file
-# --------------------------------------------------
+# If debug is enabled, at a minimum
+# level of 10, log command line
+# variables to log file
+# --------------------------------
 log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
@@ -826,6 +829,14 @@ log('Drive Device: ' + drive_device, 10)
 log('Command: ' + mtx_cmd, 10)
 log('Drive Index: ' + drive_index, 10)
 log('Slot: ' + slot, 10)
+# Log all configuration file
+# variables and their values?
+# ---------------------------
+if log_cfg_vars:
+    log('Config file variables:', 10)
+    log('----------------------', 10)
+    for k, v in config_dict.items():
+        log(k + ': ' + str(v), 10)
 log('----------', 10)
 
 # Check the OS to assign the 'ready' variable
