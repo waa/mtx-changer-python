@@ -507,30 +507,25 @@ def do_get_sg_node():
     # drive_device = '/dev/nst0'
     # drive_device = '/dev/tape/by-id/scsi-350223344ab000900-nst'
     # drive_device = '/dev/tape/by-path/STK-T10000B-XYZZY_B1-nst'
+    # -----------------------------------------------------------
+    cmd = ls_bin + ' -l ' + drive_device
+    log('ls command: ' + cmd, 30)
+    result = get_shell_result(cmd)
+    log_cmd_results(result)
+    # The ls command outputs a line feed that needs to be stripped
+    # ------------------------------------------------------------
     if '/dev/st' in drive_device or '/dev/nst' in drive_device:
-        # OK, we caught the /dev/st# or /dev/nst# case
-        # --------------------------------------------
-        st = re.sub('/dev/n*(st\d+)', '\\1', drive_device)
-    elif '/by-id' in drive_device:
-        # OK, we caught the /dev/tape/by-id case
-        # --------------------------------------
-        st = re.sub('/dev/tape/by-id/scsi-3(.+?)-.*', '\\1', drive_device)
-    # For the by-path, I will need to do a simple ls /dev/tape/by-path it seems
-    # -------------------------------------------------------------------------
-    elif '/by-path' in drive_device:
-        # OK, we caught the /dev/tape/by-path case
-        # ----------------------------------------
-        cmd = ls_bin + ' -l ' + drive_device
-        log('ls command: ' + cmd, 30)
-        result = get_shell_result(cmd)
-        log_cmd_results(result)
-        # The ls command outputs a line feed that needs to be stripped
-        # ------------------------------------------------------------
-        st = re.sub('.* -> .*/n*(st\d+).*', '\\1', result.stdout.rstrip('\n'))
+        # OK, we caught the simple /dev/st# or /dev/nst# case
+        # ---------------------------------------------------
+        st = drive_device
+    elif '/by-id' in drive_device or '/by-path' in drive_device:
+        # OK, we caught the /dev/tape/by-id or /dev/tape/by-path case
+        # -----------------------------------------------------------
+        st = '/dev/' + re.sub('.* -> .*/n*(st\d+).*$', '\\1', result.stdout.rstrip('\n'), re.S)
 
     # Now we use lsscsi to match to the /dev/sg# node required by tapeinfo
     # --------------------------------------------------------------------
-    cmd = lsscsi_bin + ' -ug'
+    cmd = lsscsi_bin + ' -g'
     log('lsscsi command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
