@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 #
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # - mtx-changer-python.py
-# -------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #
 # - 20230529
 # - Bill Arlofski - This script is intended to be a drop-in replacement for
@@ -26,14 +26,14 @@
 # script may change and more variables may be added over time, it is highly
 # recommended to make use of the config file for customizing the variable
 # settings.
-# ---------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 #
 # Modified notes from the original bash/perl mtx-changer script
 # -------------------------------------------------------------
 # This script is called by the Bacula SD, configured in the
 # Autochanger's ChangerCommand setting like:
 #
-# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %i %j"
+# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %j"
 #
 # ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
 #
@@ -44,9 +44,6 @@
 # In the example command line above, we can see that the '-c config' and '-s section' are optional but
 # must come before the other <required> options. The jobname is also optional and if passed,
 # it must after the other options.
-#
-# NOTE: The %i variable is not available as of 20230527. I have an official request with the developers to add this
-# variable. Until this feature request is implemented, just pass a literal empty string in this place instead of %i: ''
 #
 #  Valid commands are:
 #  - list      List available volumes in slot:volume format.
@@ -62,9 +59,8 @@
 #
 #  Slots are numbered from 1.
 #  Drives are numbered from 0.
-# ----------------------------------------------------------------------------
 #
-# -------------------------------------------------------------------------
+# -----------------------------------------------------------------------
 #
 # BSD 2-Clause License
 #
@@ -93,7 +89,7 @@
 # LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------
 #
 # ============================================================
 # Nothing below this line should need to be modified
@@ -116,7 +112,7 @@ from configparser import ConfigParser, BasicInterpolation
 # ------------------
 progname = 'MTX Changer - Python'
 version = '1.00'
-reldate = 'May 30, 2023'
+reldate = 'June 04, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -186,9 +182,15 @@ def log(text, level):
                 + ' - ' if jobname is not None else '')) + text + '\n')
 
 def log_cmd_results(result):
+    stdout = result.stdout.rstrip('\n')
+    stderr = result.stderr.rstrip('\n')
+    if stdout == '':
+        stdout = 'N/A'
+    if stderr == '':
+        stderr = 'N/A'
     log('returncode: ' + str(result.returncode), 40)
-    log('stdout: ' + result.stdout.rstrip('\n'), 40)
-    log('stderr: ' + result.stderr.rstrip('\n'), 40)
+    log('stdout: ' + stdout, 40)
+    log('stderr: ' + stderr, 40)
 
 def print_opt_errors(opt):
     'Print the incorrect variable and the reason it is incorrect.'
@@ -205,7 +207,7 @@ def print_opt_errors(opt):
     return error_txt
 
 def get_shell_result(cmd):
-    'Given a command to run, return the subprocess.run result'
+    'Given a command to run, return the subprocess.run() result'
     log('In function: get_shell_result()', 50)
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     return result
@@ -496,7 +498,7 @@ def do_get_sg_node():
     # I do not want to trust what is in the the SD Device's
     # 'ControlDevice =' because it may change after a reboot,
     # so I will use `lsscsi` to always identify the correct
-    # one on-the-fly.
+    # one on-the-fly - at least on Linux.
     # -------------------------------------------------------
     # In Linux, a Device's 'ArchiveDevice = ' may be specified as '/dev/nst#' or
     # '/dev/tape/by-id/scsi-3XXXXXXXX-nst' (the preferred method), or even with
@@ -845,7 +847,7 @@ log('----------', 10)
 ready = get_ready_str()
 
 # Check to see if the operation can/should log volume
-# names. If yes, then call the getvolname function
+# names. If yes, then call the do_getvolname function
 # ---------------------------------------------------
 if mtx_cmd in ('load', 'loaded', 'unload', 'transfer'):
     volume = do_getvolname()
