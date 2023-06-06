@@ -571,7 +571,7 @@ def do_get_sg_node():
 
 def do_checkdrive():
     'Given a tape drive /dev/sg# node, check tapeinfo output, call do_clean if "clean drive" alerts exist.'
-    log('In function: do_checkdrive()', 51)
+    log('In function: do_checkdrive()', 50)
     # First, we need to check and see if we have any cleaning tapes in the library
     # ----------------------------------------------------------------------------
     if auto_clean:
