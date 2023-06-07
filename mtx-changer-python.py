@@ -102,6 +102,7 @@ import os
 import re
 import sys
 import random
+import shutil
 import subprocess
 from time import sleep
 from docopt import docopt
@@ -134,6 +135,11 @@ slot = drive_device = drv_idx = drive_index = ''
 # that a drive needs to be cleaned
 # ---------------------------------
 cln_codes = ['20', '21']
+
+# Lists of platform specific binaries
+# -----------------------------------
+linux_bin_lst = ['lsscsi_bin']
+fbsd_bin_lst = ['camcontrol_bin']
 
 # Define the docopt string
 # ------------------------
@@ -192,36 +198,78 @@ def log_cmd_results(result):
     log('stdout: ' + stdout, 40)
     log('stderr: ' + stderr, 40)
 
-def print_opt_errors(opt):
+def print_opt_errors(opt, bin_var=None):
     'Print the incorrect variable and the reason it is incorrect.'
     if opt == 'config':
         error_txt = 'The config file \'' + config_file + '\' does not exist or is not readable.'
     elif opt == 'section':
         error_txt = 'The section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
-    elif opt == 'conf_version':
-        error_txt = 'The config file conf_version variable (' + conf_version + ') does not match the script version (' + version + ')'
-    elif opt == 'uname':
-        error_txt = 'Could not determine the OS using the \'uname\' utility.'
-    elif opt == 'command':
-        error_txt = 'The command provided (' + mtx_cmd + ') is not a valid command.'
-    return error_txt
+    elif opt == 'bin':
+        error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
+    return '\n' + error_txt
 
 def get_shell_result(cmd):
-    'Given a command to run, return the subprocess.run() result'
+    'Given a command to run, return the subprocess.run() result.'
     log('In function: get_shell_result()', 50)
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     return result
 
-def get_ready_str():
-    'Determine the OS so we can set the correct mt "ready" string.'
+def cmd_exists(cmd):
+    'Check that a binary command exists and is executable.'
+    log('In function: do_cmd_exists()', 50)
+    return shutil.which(cmd[1]) is not None
+
+def do_get_uname():
+    'Get the OS uname to be use in other tests.'
+    log('In function: do_get_uname()', 50)
     global uname
-    log('In function: get_ready_str()', 50)
     cmd = uname_bin
-    log('Getting OS so we can set the \'ready\' variable.', 40)
+    log('Getting OS\'s uname so we can use it for other tests.', 40)
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
+    if result.returncode != 0:
+        log('ERROR calling: ' + cmd, 20)
+        # The SD will print this stdout after 'Result=' in the job log
+        # ------------------------------------------------------------
+        print(result.stderr)
+        sys.exit(result.returncode)
     uname = result.stdout.rstrip('\n')
+
+def do_chk_bins():
+    'Check that all defined binaries exist, and are executable.'
+    log('In function: do_chk_bins()', 50)
+    for bin_var in config_dict.items():
+        if '_bin' in bin_var[0]:
+            # Here we make sure to only test binary
+            # commands that exist on the platform
+            # -------------------------------------
+            if (bin_var[0] in linux_bin_lst and uname == 'Linux') \
+                or (bin_var[0] in fbsd_bin_lst and uname == 'FreeBSD'):
+                # print('In list, right OS')
+                if cmd_exists(bin_var):
+                    pass
+                else:
+                    print(print_opt_errors('bin', bin_var))
+                    usage()
+            elif bin_var[0] not in linux_bin_lst and bin_var[0] not in fbsd_bin_lst:
+                # print('Not in either list')
+                if cmd_exists(bin_var):
+                    pass
+                else:
+                    print(print_opt_errors('bin', bin_var))
+                    usage()
+            elif (bin_var[0] in linux_bin_lst and uname != 'Linux') \
+                  or (bin_var[0] in fbsd_bin_lst and uname != 'FreeBSD'):
+                # print('In list, wrong OS')
+                pass
+            else:
+                print(print_opt_errors('bin', bin_var))
+                usage()
+
+def get_ready_str():
+    'Determine the OS so we can set the correct mt "ready" string.'
+    log('In function: get_ready_str()', 50)
     if uname == 'Linux':
         if os.path.isfile('/etc/debian_version'):
             cmd = mt_bin + ' --version | grep "mt-st"'
@@ -244,7 +292,7 @@ def get_ready_str():
     elif uname == 'FreeBSD':
         return 'Current Driver State: at rest.'
     else:
-        print('\n' + print_opt_errors('uname'))
+        print(print_opt_errors('uname'))
         usage()
 
 def do_loaded():
@@ -555,8 +603,7 @@ def do_get_sg_node():
         # <STK T10000B 0107>    at scbus4 target 0 lun 0 (pass5,sa2)
         # <STK T10000B 0107>    at scbus5 target 0 lun 0 (pass4,sa1)
         # <STK T10000B 0107>    at scbus6 target 0 lun 0 (pass6,sa3)
-        # TODO: set a camcontrol_dev variable
-        cmd = 'camcontrol devlist'
+        cmd = camcontrol_bin + ' devlist'
         log('camcontrol command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
@@ -654,7 +701,7 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         fail_txt = 'Failed to load drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
-            + ('with volume (' + vol + ') ' if vol != '' else '') + 'from slot ' + slt + '.'
+                 + ('with volume (' + vol + ') ' if vol != '' else '') + 'from slot ' + slt + '.'
         log(fail_txt + ' Err: ' + result.stderr.rstrip('\n'), 20)
         log('Exiting with return code ' + str(result.returncode), 20)
         # The SD will print this stdout after 'Result=' in the job log
@@ -699,7 +746,8 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
     #                   commands if the drive is already empty.
     # ---------------------- -----------------------------------------
     if offline:
-        log('The \'offline\' variable is True. Sending drive device ' + drv_dev + ' offline command before unloading it.', 30)
+        log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
+            + ' offline command before unloading it.', 30)
         cmd = mt_bin + ' -f ' + drv_dev + ' offline'
         log('mt command: ' + cmd, 30)
         result = get_shell_result(cmd)
@@ -707,11 +755,12 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
         if result.returncode != 0:
             log('ERROR calling: ' + cmd, 20)
         if int(offline_sleep) != 0:
-            log('Sleeping for \'offline_sleep\' time of ' + offline_sleep + ' seconds to let the drive settle before unloading it.', 20)
+            log('Sleeping for \'offline_sleep\' time of ' + offline_sleep 
+                + ' seconds to let the drive settle before unloading it.', 20)
             sleep(int(offline_sleep))
     cmd = mtx_bin + ' -f ' + chgr_device + ' unload ' + slt + ' ' + drv_idx
     log('Unloading volume' + (' (' + vol + ')' if vol != '' else '') + ' from drive device ' \
-         + drv_dev + ' (drive index: ' + drv_idx + ')' + ' to slot ' + slt + '.', 20)
+        + drv_dev + ' (drive index: ' + drv_idx + ')' + ' to slot ' + slt + '.', 20)
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
@@ -745,11 +794,13 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
                 # cannot run tapeinfo but the drive has been successfully
                 # unloaded, so we just need to log and exit cleanly here.
                 # -----------------------------------------------------------
-                log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') + ' with return code ' + str(result.returncode), 20)
+                log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') \
+                    + ' with return code ' + str(result.returncode), 20)
                 return 0
         else:
             log('The chk_drive variable is False. Skipping tapeinfo tests.', 20)
-        log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') + ' with return code ' + str(result.returncode), 20)
+        log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') \
+            + ' with return code ' + str(result.returncode), 20)
     return result.returncode
 
 def do_transfer():
@@ -800,7 +851,7 @@ if args['--config'] is not None:
     config_file = args['--config']
     config_section = args['--section']
     if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
-        print('\n' + print_opt_errors('config'))
+        print(print_opt_errors('config'))
         usage()
     else:
         try:
@@ -811,7 +862,7 @@ if args['--config'] is not None:
             config_dict = dict(config.items(config_section))
         except Exception as err:
             print('  - An exception has occurred while reading configuration file: ' + str(err))
-            print('\n' + print_opt_errors('section'))
+            print(print_opt_errors('section'))
             sys.exit(1)
 
     # For each key in the config_dict dictionary, make
@@ -846,7 +897,7 @@ jobname = args['<jobname>']
 # If debug is enabled, at a minimum
 # level of 10, log command line
 # variables to log file
-# --------------------------------
+# ---------------------------------
 log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
@@ -866,6 +917,19 @@ if log_cfg_vars:
     for k, v in config_dict.items():
         log(k + ': ' + str(v), 10)
 log('----------', 10)
+
+# Get the OS's uname to be used on other tests
+# --------------------------------------------
+do_get_uname()
+
+# Check that the binaries exist and that they are executable.
+# NOTE: A small chicken and egg issue exists here because we
+# call uname above but we have not verified the binary exists
+# and is executable by us (ie: bacula user). We can't check the
+# binaries first because we filter out testing binaries based on
+# some platform-specific binaries that don't exists on other platforms.
+# ----------------------i----------------------------------------------
+do_chk_bins()
 
 # Check the OS to assign the 'ready' variable
 # to know when a drive is loaded and ready.
@@ -897,6 +961,6 @@ elif mtx_cmd == 'unload':
 elif mtx_cmd == 'transfer':
    do_transfer()
 else:
-    print('\n' + print_opt_errors('command'))
+    print(print_opt_errors('command'))
     usage()
 
