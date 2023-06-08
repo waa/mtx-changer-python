@@ -111,7 +111,7 @@ from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
-progname = 'MTX Changer - Python'
+progname = 'MTX-Changer-Python'
 version = '1.00'
 reldate = 'June 06, 2023'
 progauthor = 'Bill Arlofski'
@@ -126,9 +126,9 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_export',
                            'inventory', 'log_cfg_vars', 'offline', 'vxa_packetloader']
 
-# Initialize these variables to satisfy the
-# defaults in the do_load and do_unload functions.
-# ------------------------------------------------
+# Initialize these to satisfy the defaults
+# in the do_load() and do_unload() functions.
+# -------------------------------------------
 slot = drive_device = drv_idx = drive_index = ''
 
 # List of tapeinfo codes indicating
@@ -208,16 +208,20 @@ def print_opt_errors(opt, bin_var=None):
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
     return '\n' + error_txt
 
+def do_chk_cmd_result(result):
+    'Given a result object, check the returncode, then log and exit if non zero.'
+    if result.returncode != 0:
+        log('ERROR calling: ' + cmd, 20)
+        # The SD will print this stdout after 'Result=' in the job log
+        # ------------------------------------------------------------
+        print(result.stderr)
+        sys.exit(result.returncode)
+
 def get_shell_result(cmd):
     'Given a command to run, return the subprocess.run() result.'
     log('In function: get_shell_result()', 50)
     result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     return result
-
-def cmd_exists(cmd):
-    'Check that a binary command exists and is executable.'
-    log('In function: do_cmd_exists()', 50)
-    return shutil.which(cmd[1]) is not None
 
 def do_get_uname():
     'Get the OS uname to be use in other tests.'
@@ -228,13 +232,19 @@ def do_get_uname():
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        # The SD will print this stdout after 'Result=' in the job log
-        # ------------------------------------------------------------
-        print(result.stderr)
-        sys.exit(result.returncode)
+    do_chk_cmd_result(result)
     uname = result.stdout.rstrip('\n')
+
+def do_cmd_exists(cmd):
+    'Check that a binary command exists and is executable.'
+    log('In function: do_cmd_exists()', 50)
+    log('Checking command: ' + cmd[1], 40)
+    cmd_exists = shutil.which(cmd[1]) is not None
+    if cmd_exists:
+        log('Command ' + cmd[1] + ': OK', 40)
+    else:
+        log('Command ' + cmd[1] + ': FAIL', 40)
+    return cmd_exists
 
 def do_chk_bins():
     'Check that all defined binaries exist, and are executable.'
@@ -247,14 +257,14 @@ def do_chk_bins():
             if (bin_var[0] in linux_bin_lst and uname == 'Linux') \
                 or (bin_var[0] in fbsd_bin_lst and uname == 'FreeBSD'):
                 # print('In list, right OS')
-                if cmd_exists(bin_var):
+                if do_cmd_exists(bin_var):
                     pass
                 else:
                     print(print_opt_errors('bin', bin_var))
                     usage()
             elif bin_var[0] not in linux_bin_lst and bin_var[0] not in fbsd_bin_lst:
                 # print('Not in either list')
-                if cmd_exists(bin_var):
+                if do_cmd_exists(bin_var):
                     pass
                 else:
                     print(print_opt_errors('bin', bin_var))
@@ -282,8 +292,7 @@ def get_ready_str():
             cmd = mt_bin + ' --version | grep "GNU cpio"'
             log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
-            if debug:
-                log_cmd_results(result)
+            log_cmd_results(result)
             if result.returncode == 0:
                 return 'drive status'
         return 'ONLINE'
@@ -295,6 +304,32 @@ def get_ready_str():
         print(print_opt_errors('uname'))
         usage()
 
+def do_slots():
+    'Print the number of slots in the library.'
+    log('In function: do_slots()', 50)
+    log('Determining the number of slots in the library.', 20)
+    cmd = mtx_bin + ' -f ' + chgr_device + ' status'
+    log('mtx command: ' + cmd, 30)
+    result = get_shell_result(cmd)
+    log_cmd_results(result)
+    do_chk_cmd_result(result)
+    # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
+    # --------------------------------------------------------------------------------------------
+    slots_line = re.search('Storage Changer.*', result.stdout)
+    slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
+    log('do_slots output: ' + slots, 40)
+    return slots
+
+def do_inventory():
+    'Call mtx with the inventory command if the inventory variable is True.'
+    log('In function: do_inventory()', 50)
+    cmd = mtx_bin + ' -f ' + chgr_device + ' inventory'
+    log('mtx command: ' + cmd, 30)
+    result = get_shell_result(cmd)
+    log_cmd_results(result)
+    do_chk_cmd_result(result)
+    return
+
 def do_loaded():
     'If the drive is loaded, return the slot that is in it, otherwise return 0'
     log('In function: do_loaded()', 50)
@@ -303,12 +338,7 @@ def do_loaded():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        # The SD will print this stdout after 'Result=' in the job log
-        # ------------------------------------------------------------
-        print(result.stderr)
-        sys.exit(result.returncode)
+    do_chk_cmd_result(result)
     # We re.search() for drive_index:Full lines and then we return 0
     # if the drive is empty, or the number of the slot that is loaded
     # For the debug log, we also print the volume name and the slot.
@@ -328,36 +358,6 @@ def do_loaded():
         log('do_loaded output: 0', 40)
         return '0'
 
-def do_slots():
-    'Print the number of slots in the library.'
-    log('In function: do_slots()', 50)
-    log('Determining the number of slots in the library.', 20)
-    cmd = mtx_bin + ' -f ' + chgr_device + ' status'
-    log('mtx command: ' + cmd, 30)
-    result = get_shell_result(cmd)
-    log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        sys.exit(result.returncode)
-    # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
-    # --------------------------------------------------------------------------------------------
-    slots_line = re.search('Storage Changer.*', result.stdout)
-    slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
-    log('do_slots output: ' + slots, 40)
-    return slots
-
-def do_inventory():
-    'Call mtx with the inventory command if the inventory variable is True.'
-    log('In function: do_inventory()', 50)
-    cmd = mtx_bin + ' -f ' + chgr_device + ' inventory'
-    log('mtx command: ' + cmd, 30)
-    result = get_shell_result(cmd)
-    log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        sys.exit(result.returncode)
-    return
-
 def do_list():
     'Return the list of slots and volumes in the slot:volume format required by the SD.'
     log('In function: do_list()', 50)
@@ -369,9 +369,7 @@ def do_list():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        sys.exit(result.returncode)
+    do_chk_cmd_result(result)
     # Create lists of only full Data Transfer Elements, Storage Elements, and possibly
     # the Import/Export elements. Then concatenate them into one 'mtx_elements_list' list.
     # ------------------------------------------------------------------------------------
@@ -415,9 +413,7 @@ def do_listall():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        sys.exit(result.returncode)
+    do_chk_cmd_result(result)
     # Create lists of all Data Transfer Elements, Storage Elements, and possibly Import/Export
     # elements - empty, or full. Then concatenate them into one 'mtx_elements_list' list.
     # ----------------------------------------------------------------------------------------
@@ -492,8 +488,9 @@ def do_wait_for_drive():
     while s <= int(load_wait):
         cmd = mt_bin + ' -f ' + drive_device + ' status'
         log('mt command: ' + cmd, 30)
-        result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        result = get_shell_result(cmd)
         log_cmd_results(result)
+        do_chk_cmd_result(result)
         if re.search(ready, result.stdout):
             log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready.', 20)
             break
@@ -565,6 +562,7 @@ def do_get_sg_node():
         log('ls command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
+        do_chk_cmd_result(result)
         # The ls command outputs a line feed that needs to be stripped
         # ------------------------------------------------------------
         if '/dev/st' in drive_device or '/dev/nst' in drive_device:
@@ -582,8 +580,7 @@ def do_get_sg_node():
         log('lsscsi command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        if result.returncode != 0:
-            log('ERROR calling: ' + cmd, 20)
+        do_chk_cmd_result(result)
         sg_search = re.search('.*' + st + ' .*(/dev/sg\d+)', result.stdout)
         if sg_search:
             sg = sg_search.group(1)
@@ -607,6 +604,7 @@ def do_get_sg_node():
         log('camcontrol command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
+        do_chk_cmd_result(result)
         sg_search = re.search('.*\((pass\d+),' + sa + '\)', result.stdout)
         if sg_search:
             sg = '/dev/' + sg_search.group(1)
@@ -651,8 +649,7 @@ def do_checkdrive():
     log('tapeinfo command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
+    do_chk_cmd_result(result)
     tapealerts = re.findall('TapeAlert\[(\d+)\]: +(.*)', result.stdout)
     if len(tapealerts) > 0:
         clean_drive = False
@@ -698,6 +695,9 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False)
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
+    # Don't call do_chk_cmd_result() here,
+    # we need to log something specific
+    # ------------------------------------
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         fail_txt = 'Failed to load drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
@@ -752,8 +752,7 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
         log('mt command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        if result.returncode != 0:
-            log('ERROR calling: ' + cmd, 20)
+        do_chk_cmd_result(result)
         if int(offline_sleep) != 0:
             log('Sleeping for \'offline_sleep\' time of ' + offline_sleep 
                 + ' seconds to let the drive settle before unloading it.', 20)
@@ -764,6 +763,9 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
+    # Don't call do_chk_cmd_result() here,
+    # we need to log something specific
+    # ------------------------------------
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         fail_txt = 'Failed to unload drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
@@ -822,6 +824,9 @@ def do_transfer():
        log('mtx command: ' + cmd, 30)
        result = get_shell_result(cmd)
        log_cmd_results(result)
+       # Don't call do_chk_cmd_result() here,
+       # we need to log something specific
+       # ------------------------------------
        if result.returncode != 0:
            log('ERROR calling: ' + cmd, 20)
            fail_txt = 'Unsuccessfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot ' \
@@ -894,10 +899,10 @@ drive_index = args['<drive_index>']
 slot = args['<slot>']
 jobname = args['<jobname>']
 
-# If debug is enabled, at a minimum
+# If debug is enabled at a minimum
 # level of 10, log command line
 # variables to log file
-# ---------------------------------
+# --------------------------------
 log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
@@ -908,6 +913,7 @@ log('Drive Device: ' + drive_device, 10)
 log('Command: ' + mtx_cmd, 10)
 log('Drive Index: ' + drive_index, 10)
 log('Slot: ' + slot, 10)
+
 # Log all configuration file
 # variables and their values?
 # ---------------------------
@@ -918,17 +924,20 @@ if log_cfg_vars:
         log(k + ': ' + str(v), 10)
 log('----------', 10)
 
-# Get the OS's uname to be used on other tests
+# Get the OS's uname to be used in other tests
 # --------------------------------------------
 do_get_uname()
 
 # Check that the binaries exist and that they are executable.
-# NOTE: A small chicken and egg issue exists here because we
-# call uname above but we have not verified the binary exists
-# and is executable by us (ie: bacula user). We can't check the
-# binaries first because we filter out testing binaries based on
-# some platform-specific binaries that don't exists on other platforms.
-# ----------------------i----------------------------------------------
+# NOTE: A small chicken and egg issue exists here because we call
+# uname above but we have not verified the binary exists and is
+# executable by us (ie: bacula user). We can't check the binaries
+# first because we filter out testing binaries based on some
+# platform-specific binaries that don't exist on other platforms
+# using the 'uname' variable assigned by the do_get_uname()
+# function. Should be safe, as all systems have uname in the
+# $PATH.
+# ---------------------------------------------------------------
 do_chk_bins()
 
 # Check the OS to assign the 'ready' variable
@@ -963,4 +972,3 @@ elif mtx_cmd == 'transfer':
 else:
     print(print_opt_errors('command'))
     usage()
-
