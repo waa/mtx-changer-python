@@ -113,7 +113,7 @@ from configparser import ConfigParser, BasicInterpolation
 # ------------------
 progname = 'MTX-Changer-Python'
 version = '1.00'
-reldate = 'June 06, 2023'
+reldate = 'July 06, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
