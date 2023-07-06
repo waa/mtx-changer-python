@@ -214,7 +214,7 @@ def do_chk_cmd_result(result):
         log('ERROR calling: ' + cmd, 20)
         # The SD will print this stdout after 'Result=' in the job log
         # ------------------------------------------------------------
-        print(result.stderr)
+        print(result.stderr.rstrip('\n'))
         sys.exit(result.returncode)
 
 def get_shell_result(cmd):
@@ -247,7 +247,7 @@ def do_cmd_exists(cmd):
     return cmd_exists
 
 def do_chk_bins():
-    'Check that all defined binaries exist, and are executable.'
+    'Check that all defined binaries exist and are executable.'
     log('In function: do_chk_bins()', 50)
     for bin_var in config_dict.items():
         if '_bin' in bin_var[0]:
@@ -504,8 +504,8 @@ def do_wait_for_drive():
         log('Exiting with return code 1', 20)
         return 1
     else:
-        log('Successfully loaded volume ' + ('(' + volume + ') ' if volume != '' else '') \
-            + 'to drive device ' + drive_device + ' (drive index: ' + drive_index + ') from slot ' + slot + '.', 20)
+        log('Successfully loaded volume' + (' (' + volume + ')' if volume != '' else '') + ' from slot ' + slot \
+            + ' to drive device ' + drive_device + ' (drive index: ' + drive_index + ').', 20)
         log('Exiting with return code 0', 20)
         return 0
 
@@ -542,18 +542,15 @@ def do_get_sg_node():
     log('In function: do_get_sg_node()', 50)
     log('Determining the tape drive\'s scsi generic device node required by tapeinfo.', 20)
     if uname == 'Linux':
-        # I do not want to trust what is in the the SD Device's
-        # 'ControlDevice =' because it may change after a reboot,
-        # so I will use `lsscsi` to always identify the correct
-        # one on-the-fly - at least on Linux.
-        # -------------------------------------------------------
-        # In Linux, a Device's 'ArchiveDevice = ' may be specified as '/dev/nst#' or
-        # '/dev/tape/by-id/scsi-3XXXXXXXX-nst' (the preferred method), or even with
-        # '/dev/tape/by-path/*', so I think we need to try to determine which one
-        # it is and automatically figure out what field in the `lsscsi` output to
-        # match it to. This can get even more fun™ when we think about the BSDs or
-        # other OSes... So, work in progress here for sure.
-        # --------------------------------------------------------------------------
+        # Use `lsscsi` on Linux to always identify the
+        # correct scsi generic device node on-the-fly.
+        # --------------------------------------------
+        # On Linux, tape drive device nodess may be specified
+        # as '/dev/nst#' or '/dev/tape/by-id/scsi-3XXXXXXXX-nst' (the
+        # preferred method), or even with '/dev/tape/by-path/*', so we
+        # will determine which one it is and then use the output from
+        # `lsscsi` to match it to its corresponding /dev/sg# node.
+        # ------------------------------------------------------------
         # drive_device = '/dev/nst0'
         # drive_device = '/dev/tape/by-id/scsi-350223344ab000900-nst'
         # drive_device = '/dev/tape/by-path/STK-T10000B-XYZZY_B1-nst'
@@ -563,8 +560,6 @@ def do_get_sg_node():
         result = get_shell_result(cmd)
         log_cmd_results(result)
         do_chk_cmd_result(result)
-        # The ls command outputs a line feed that needs to be stripped
-        # ------------------------------------------------------------
         if '/dev/st' in drive_device or '/dev/nst' in drive_device:
             # OK, we caught the simple /dev/st# or /dev/nst# case
             # ---------------------------------------------------
@@ -572,10 +567,9 @@ def do_get_sg_node():
         elif '/by-id' in drive_device or '/by-path' in drive_device:
             # OK, we caught the /dev/tape/by-id or /dev/tape/by-path case
             # -----------------------------------------------------------
+            # The ls command outputs a line feed that needs to be stripped
+            # ------------------------------------------------------------
             st = '/dev/' + re.sub('.* -> .*/n*(st\d+).*$', '\\1', result.stdout.rstrip('\n'), re.S)
-        # Now, on Linux, we use lsscsi to match to
-        # the /dev/sg# node required by tapeinfo
-        # ----------------------------------------
         cmd = lsscsi_bin + ' -g'
         log('lsscsi command: ' + cmd, 30)
         result = get_shell_result(cmd)
@@ -588,10 +582,11 @@ def do_get_sg_node():
             return sg
     elif uname == 'FreeBSD':
         sa = re.sub('/dev/(sa\d+)', '\\1', drive_device)
-        # In FreeBSD drive device nodes are '/dev/sa#' and their
-        # corresponding scsi generic device nodes are '/dev/pass#'
-        # We can correlate them with the 'camcontrol' command
-        # --------------------------------------------------------
+        # On FreeBSD, tape drive device nodes are '/dev/sa#'
+        # and their corresponding scsi generic device nodes
+        # are '/dev/pass#'. We can correlate them with the
+        # 'camcontrol' command.
+        # --------------------------------------------------
         # camcontrol devlist
         # <VBOX HARDDISK 1.0>   at scbus0 target 0 lun 0 (pass0,ada0)
         # <VBOX CD-ROM 1.0>     at scbus1 target 0 lun 0 (cd0,pass1)
@@ -600,6 +595,7 @@ def do_get_sg_node():
         # <STK T10000B 0107>    at scbus4 target 0 lun 0 (pass5,sa2)
         # <STK T10000B 0107>    at scbus5 target 0 lun 0 (pass4,sa1)
         # <STK T10000B 0107>    at scbus6 target 0 lun 0 (pass6,sa3)
+        # -----------------------------------------------------------
         cmd = camcontrol_bin + ' devlist'
         log('camcontrol command: ' + cmd, 30)
         result = get_shell_result(cmd)
@@ -615,7 +611,7 @@ def do_get_sg_node():
         return 1
 
 def do_checkdrive():
-    'Given a tape drive /dev/sg# node, check tapeinfo output, call do_clean if "clean drive" alerts exist.'
+    'Given a tape drive /dev/sg# node, check tapeinfo output, call do_clean() if "clean drive" alerts exist.'
     log('In function: do_checkdrive()', 50)
     # First, we need to check and see if we have any cleaning tapes in the library
     # ----------------------------------------------------------------------------
@@ -650,22 +646,28 @@ def do_checkdrive():
     result = get_shell_result(cmd)
     log_cmd_results(result)
     do_chk_cmd_result(result)
+    # Example tapeinfo output when 'TapeAlert' alert lines exist:
+    # TapeAlert[15]: Undefined.
+    # TapeAlert[20]:     Clean Now: The tape drive neads cleaning NOW.
+    # TapeAlert[21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
+    # -------------------------------------------------------------------------------------
     tapealerts = re.findall('TapeAlert\[(\d+)\]: +(.*)', result.stdout)
     if len(tapealerts) > 0:
         clean_drive = False
-        log('WARN: Found ' + str(len(tapealerts)) + ' tape alert' + ('s' if len(tapealerts) > 1 else '') \
+        log('INFO: Found ' + str(len(tapealerts)) + ' tape alert' + ('s' if len(tapealerts) > 1 else '') \
             + ' for drive device ' + drive_device + ' (' + sg + '):', 20)
         for alert in tapealerts:
             log('      [' + alert[0] + ']: ' + alert[1], 20)
         for cln_code in cln_codes:
             if any(cln_code in i for i in tapealerts):
                 clean_drive = True
-                # Stop checking as soon as we find one
-                # ------------------------------------
+                # Stop checking once we match any of the
+                # cleaning alert codes in the clean_codes list
+                # --------------------------------------------
                 break
         if clean_drive:
             if auto_clean:
-                log('Drive requires cleaning and the \'auto_clean\' variable is True. Calling do_clean() function.', 20)
+                log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True. Calling do_clean() function.', 20)
                 do_clean(cln_tapes)
             else:
                 log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False. Skipping cleaning.', 20)
@@ -673,9 +675,9 @@ def do_checkdrive():
             log('No "Drive needs cleaning" tape alerts detected.', 20)
     else:
         log('No tape alerts detected.', 20)
-    # Unless we have some major issue here, we
-    # need to just return to the do_unload function
-    # ---------------------------------------------
+    # Now we we need to just return
+    # to the do_unload() function
+    # -----------------------------
     return 0
 
 def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False):
@@ -690,8 +692,8 @@ def do_load(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = False)
     if vol is None:
         vol = volume
     cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
-    log('Loading volume' + (' (' + vol + ')' if vol != '' else '') + ' to drive device ' + drv_dev \
-         + ' (drive index: ' + drv_idx + ')' + ' from slot ' + slt + '.', 20)
+    log('Loading volume' + (' (' + vol + ')' if vol != '' else '') + ' from slot ' + slt \
+        + ' to drive device ' + drv_dev + ' (drive index: ' + drv_idx + ').', 20)
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
@@ -796,12 +798,12 @@ def do_unload(slt = None, drv_dev = None, drv_idx = None, vol = None, cln = Fals
                 # cannot run tapeinfo but the drive has been successfully
                 # unloaded, so we just need to log and exit cleanly here.
                 # -----------------------------------------------------------
-                log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') \
+                log('Exiting do_unload() volume ' + ('(' + vol + ')' if vol != '' else '') \
                     + ' with return code ' + str(result.returncode), 20)
                 return 0
         else:
             log('The chk_drive variable is False. Skipping tapeinfo tests.', 20)
-        log('Exiting do_unload volume ' + ('(' + vol + ')' if vol != '' else '') \
+        log('Exiting do_unload() volume ' + ('(' + vol + ')' if vol != '' else '') \
             + ' with return code ' + str(result.returncode), 20)
     return result.returncode
 
