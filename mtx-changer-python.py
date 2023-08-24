@@ -112,7 +112,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.01'
+version = '1.02'
 reldate = 'August 24, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -124,7 +124,7 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
 cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_export',
-                           'inventory', 'log_cfg_vars', 'offline', 'vxa_packetloader']
+                           'inventory', 'log_cfg_vars', 'offline', 'strip_jobname', 'vxa_packetloader']
 
 # Initialize these to satisfy the defaults
 # in the do_load() and do_unload() functions.
@@ -898,7 +898,10 @@ chgr_device = args['<chgr_device>']
 drive_device = args['<drive_device>']
 drive_index = args['<drive_index>']
 slot = args['<slot>']
-jobname = args['<jobname>']
+if args['<jobname>'] is not None and strip_jobname:
+    jobname = re.sub('(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['<jobname>'])
+else:
+    jobname = args['<jobname>']
 
 # If debug is enabled at a minimum
 # level of 10, log command line
