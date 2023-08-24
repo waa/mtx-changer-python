@@ -112,8 +112,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.00'
-reldate = 'July 06, 2023'
+version = '1.01'
+reldate = 'August 24, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -220,8 +220,7 @@ def do_chk_cmd_result(result):
 def get_shell_result(cmd):
     'Given a command to run, return the subprocess.run() result.'
     log('In function: get_shell_result()', 50)
-    result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    return result
+    return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
 def do_get_uname():
     'Get the OS uname to be use in other tests.'
