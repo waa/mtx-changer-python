@@ -112,8 +112,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.02'
-reldate = 'August 24, 2023'
+version = '1.03'
+reldate = 'August 25, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -208,7 +208,7 @@ def print_opt_errors(opt, bin_var=None):
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
     return '\n' + error_txt
 
-def do_chk_cmd_result(result):
+def do_chk_cmd_result(result, cmd = ''):
     'Given a result object, check the returncode, then log and exit if non zero.'
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
@@ -489,7 +489,7 @@ def do_wait_for_drive():
         log('mt command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result)
+        do_chk_cmd_result(result, cmd)
         if re.search(ready, result.stdout):
             log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready.', 20)
             break
@@ -871,8 +871,8 @@ if args['--config'] is not None:
             print(print_opt_errors('section'))
             sys.exit(1)
 
-    # For each key in the config_dict dictionary, make
-    # its key name into a global variable and assign it the key's dictionary value.
+    # For each key in the config_dict dictionary, make its key name
+    # into a global variable and assign it the key's dictionary value.
     # https://www.pythonforbeginners.com/basics/convert-string-to-variable-name-in-python
     # -----------------------------------------------------------------------------------
     myvars = vars()
@@ -898,6 +898,10 @@ chgr_device = args['<chgr_device>']
 drive_device = args['<drive_device>']
 drive_index = args['<drive_index>']
 slot = args['<slot>']
+
+# Should we strip the long datestamp off
+# of the jobname passed to us by the SD?
+# --------------------------------------
 if args['<jobname>'] is not None and strip_jobname:
     jobname = re.sub('(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['<jobname>'])
 else:
