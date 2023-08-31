@@ -112,8 +112,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.04'
-reldate = 'August 29, 2023'
+version = '1.05'
+reldate = 'August 30, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -209,7 +209,7 @@ def print_opt_errors(opt, bin_var=None):
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
     return '\n' + error_txt
 
-def do_chk_cmd_result(result, cmd=''):
+def do_chk_cmd_result(result, cmd):
     'Given a result object, check the returncode, then log and exit if non zero.'
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
@@ -232,7 +232,7 @@ def do_get_uname():
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     uname = result.stdout.rstrip('\n')
 
 def do_cmd_exists(cmd):
@@ -312,7 +312,7 @@ def do_slots():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
     # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
@@ -327,7 +327,7 @@ def do_inventory():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     return
 
 def do_loaded():
@@ -338,7 +338,7 @@ def do_loaded():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     # We re.search() for drive_index:Full lines and then we return 0
     # if the drive is empty, or the number of the slot that is loaded
     # For the debug log, we also print the volume name and the slot.
@@ -369,7 +369,7 @@ def do_list():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     # Create lists of only full Data Transfer Elements, Storage Elements, and possibly
     # the Import/Export elements. Then concatenate them into one 'mtx_elements_list' list.
     # ------------------------------------------------------------------------------------
@@ -413,7 +413,7 @@ def do_listall():
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     # Create lists of all Data Transfer Elements, Storage Elements, and possibly Import/Export
     # elements - empty, or full. Then concatenate them into one 'mtx_elements_list' list.
     # ----------------------------------------------------------------------------------------
@@ -559,7 +559,7 @@ def do_get_sg_node():
         log('ls command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result)
+        do_chk_cmd_result(result, cmd)
         if '/dev/st' in drive_device or '/dev/nst' in drive_device:
             # OK, we caught the simple /dev/st# or /dev/nst# case
             # ---------------------------------------------------
@@ -574,7 +574,7 @@ def do_get_sg_node():
         log('lsscsi command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result)
+        do_chk_cmd_result(result, cmd)
         sg_search = re.search('.*' + st + ' .*(/dev/sg\d+)', result.stdout)
         if sg_search:
             sg = sg_search.group(1)
@@ -600,7 +600,7 @@ def do_get_sg_node():
         log('camcontrol command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result)
+        do_chk_cmd_result(result, cmd)
         sg_search = re.search('.*\((pass\d+),' + sa + '\)', result.stdout)
         if sg_search:
             sg = '/dev/' + sg_search.group(1)
@@ -645,7 +645,7 @@ def do_checkdrive():
     log('tapeinfo command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result)
+    do_chk_cmd_result(result, cmd)
     # Example tapeinfo output when 'TapeAlert' alert lines exist:
     # TapeAlert[15]: Undefined.
     # TapeAlert[20]:     Clean Now: The tape drive neads cleaning NOW.
@@ -752,7 +752,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
             log_cmd_results(result)
-            do_chk_cmd_result(result)
+            do_chk_cmd_result(result, cmd)
             if int(offline_sleep) != 0:
                 log('Sleeping for \'offline_sleep\' time of ' + offline_sleep 
                     + ' seconds to let the drive settle before unloading it.', 20)
