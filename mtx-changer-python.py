@@ -112,8 +112,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.05'
-reldate = 'August 30, 2023'
+version = '1.06'
+reldate = 'August 31, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -691,42 +691,48 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         drv_idx = drive_index
     if vol is None:
         vol = volume
-    cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
-    log('Loading volume' + (' (' + vol + ')' if vol != '' else '') + ' from slot ' + slt \
-        + ' to drive device ' + drv_dev + ' (drive index: ' + drv_idx + ')', 20)
-    log('mtx command: ' + cmd, 30)
-    result = get_shell_result(cmd)
-    log_cmd_results(result)
-    # Don't call do_chk_cmd_result() here,
-    # we need to log something specific
-    # ------------------------------------
-    if result.returncode != 0:
-        log('ERROR calling: ' + cmd, 20)
-        fail_txt = 'Failed to load drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
-                 + ('with volume (' + vol + ') ' if vol != '' else '') + 'from slot ' + slt
-        log(fail_txt, 20)
-        log('Err: ' + result.stderr, 20)
-        log('Exiting with return code ' + str(result.returncode), 20)
-        # The SD will print this stdout after 'Result=' in the job log
-        # ------------------------------------------------------------
-        print(fail_txt + ' Err: ' + result.stderr)
-        sys.exit(result.returncode)
-    # If we are loading a cleaning tape, do the clean_wait
-    # waiting here instead of the load_sleep time
-    # ----------------------------------------------------
-    if cln:
-        log('A cleaning tape was just loaded. Will wait (' + clean_wait + ') \'clean_wait\' seconds, then unload it.', 20)
-        sleep(int(clean_wait))
-        log('Done waiting (' + clean_wait + ') \'clean_wait\' seconds', 30)
-        do_unload(slt, drv_dev, drv_idx, vol, cln = True)
+    # Don't bother trying to load a tape into a drive that is full
+    # ------------------------------------------------------------
+    if do_loaded() != '0':
+        log('Drive is loaded, exiting with return code 1', 20)
+        return 1
     else:
-        # Sleep load_sleep seconds after the drive signals it is ready
-        # ------------------------------------------------------------
-        if int(load_sleep) != 0:
-            log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle.', 20)
-            sleep(int(load_sleep))
-    if not cln:
-        return do_wait_for_drive()
+        cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
+        log('Loading volume' + (' (' + vol + ')' if vol != '' else '') + ' from slot ' + slt \
+            + ' to drive device ' + drv_dev + ' (drive index: ' + drv_idx + ')', 20)
+        log('mtx command: ' + cmd, 30)
+        result = get_shell_result(cmd)
+        log_cmd_results(result)
+        # Don't call do_chk_cmd_result() here,
+        # we need to log something specific
+        # ------------------------------------
+        if result.returncode != 0:
+            log('ERROR calling: ' + cmd, 20)
+            fail_txt = 'Failed to load drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
+                     + ('with volume (' + vol + ') ' if vol != '' else '') + 'from slot ' + slt
+            log(fail_txt, 20)
+            log('Err: ' + result.stderr, 20)
+            log('Exiting with return code ' + str(result.returncode), 20)
+            # The SD will print this stdout after 'Result=' in the job log
+            # ------------------------------------------------------------
+            print(fail_txt + ' Err: ' + result.stderr)
+            sys.exit(result.returncode)
+        # If we are loading a cleaning tape, do the clean_wait
+        # waiting here instead of the load_sleep time
+        # ----------------------------------------------------
+        if cln:
+            log('A cleaning tape was just loaded. Will wait (' + clean_wait + ') \'clean_wait\' seconds, then unload it.', 20)
+            sleep(int(clean_wait))
+            log('Done waiting (' + clean_wait + ') \'clean_wait\' seconds', 30)
+            do_unload(slt, drv_dev, drv_idx, vol, cln = True)
+        else:
+            # Sleep load_sleep seconds after the drive signals it is ready
+            # ------------------------------------------------------------
+            if int(load_sleep) != 0:
+                log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle.', 20)
+                sleep(int(load_sleep))
+        if not cln:
+            return do_wait_for_drive()
 
 def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     'Unload a tape from a drive to a slot.'
@@ -739,10 +745,10 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         drv_idx = drive_index
     if vol is None:
         vol = volume
-    # No sense in trying to unload an empty drive.
+    # Don't bother trying to unload an empty drive
     # --------------------------------------------
     if do_loaded() == '0':
-        log('Nothing to unload.', 20)
+        log('Drive is empty, exiting with return code 0', 20)
         return 0
     else:
         if offline:
