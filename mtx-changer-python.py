@@ -776,7 +776,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             log('ERROR calling: ' + cmd, 20)
             fail_txt = 'Failed to unload drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
                      + ('with volume (' + vol + ') ' if vol != '' else '') + 'to slot ' + slt
-            log(fail_txt,20)
+            log(fail_txt, 20)
             log('Err: ' + result.stderr, 20)
             log('Exiting with return code ' + str(result.returncode), 20)
             # The SD will print this stdout after 'Result=' in the Bacula job log
@@ -933,11 +933,11 @@ log('Slot: ' + slot, 10)
 # variables and their values?
 # ---------------------------
 if log_cfg_vars:
-    log('Config file variables:', 10)
     log('----------------------', 10)
+    log('Config file variables:', 10)
     for k, v in config_dict.items():
         log(k + ': ' + str(v), 10)
-log('----------', 10)
+log('----------------------', 10)
 
 # Get the OS's uname to be used in other tests
 # --------------------------------------------
