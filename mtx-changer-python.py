@@ -189,6 +189,7 @@ def log(text, level):
 
 def log_cmd_results(result):
     'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
+    log('In function log_cmd_results()', 50)
     stdout = result.stdout.rstrip('\n')
     stderr = result.stderr.rstrip('\n')
     if stdout == '':
@@ -196,8 +197,8 @@ def log_cmd_results(result):
     if stderr == '':
         stderr = 'N/A'
     log('returncode: ' + str(result.returncode), 40)
-    log('stdout: ' + stdout, 40)
-    log('stderr: ' + stderr, 40)
+    log('stdout: ' + ('\n[begin stdout]\n' + stdout + '\n[end stdout]' if '\n' in stdout else stdout), 40)
+    log('stderr: ' + ('\n[begin stderr]\n' + stderr + '\n[end stderr]' if '\n' in stderr else stderr), 40)
 
 def print_opt_errors(opt, bin_var=None):
     'Print the incorrect variable and the reason it is incorrect.'
