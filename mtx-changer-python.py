@@ -183,7 +183,7 @@ def log(text, level):
     if debug:
         if level <= int(debug_level):
             with open(mtx_log_file, 'a+') as file:
-                file.write(now() + ' - ' + (chgr_name + ' - ' if len(chgr_name) != 0 else '') \
+                file.write(('\n' if '[ Starting ' in text else '') + now() + ' - ' + (chgr_name + ' - ' if len(chgr_name) != 0 else '') \
                 + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') else (jobname \
                 + ' - ' if jobname is not None else '')) + text.rstrip('\n') + '\n')
 
@@ -919,7 +919,7 @@ else:
 # level of 10, log command line
 # variables to log file
 # --------------------------------
-log('----------[ Starting ' + sys.argv[0] + ' ]----------', 10)
+log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
 log('Changer Name: ' + (chgr_name if chgr_name else 'No chgr_name specified'), 10)
@@ -934,11 +934,11 @@ log('Slot: ' + slot, 10)
 # variables and their values?
 # ---------------------------
 if log_cfg_vars:
-    log('----------------------', 10)
+    log('-'*22, 10)
     log('Config file variables:', 10)
     for k, v in config_dict.items():
         log(k + ': ' + str(v), 10)
-log('----------------------', 10)
+log('-'*22, 10)
 
 # Get the OS's uname to be used in other tests
 # --------------------------------------------
