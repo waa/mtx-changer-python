@@ -112,7 +112,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.07'
+version = '1.08'
 reldate = 'September 05, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -200,7 +200,7 @@ def log_cmd_results(result):
     log('stdout: ' + ('\n[begin stdout]\n' + stdout + '\n[end stdout]' if '\n' in stdout else stdout), 40)
     log('stderr: ' + ('\n[begin stderr]\n' + stderr + '\n[end stderr]' if '\n' in stderr else stderr), 40)
 
-def print_opt_errors(opt, bin_var=None):
+def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
     'Print the incorrect variable and the reason it is incorrect.'
     if opt == 'config':
         error_txt = 'The config file \'' + config_file + '\' does not exist or is not readable.'
@@ -208,6 +208,8 @@ def print_opt_errors(opt, bin_var=None):
         error_txt = 'The section [' + config_section + '] does not exist in the config file \'' + config_file + '\''
     elif opt == 'bin':
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
+    elif opt == 'truefalse':
+        error_txt = 'The variable ' + tfk + ' (' + tfv + ') must be a boolean \'True\' or \'False\'.'
     return '\n' + error_txt
 
 def do_chk_cmd_result(result, cmd):
@@ -888,13 +890,19 @@ if args['--config'] is not None:
         if k in cfg_file_true_false_lst:
             # Convert all the True/False strings to booleans on the fly
             # ---------------------------------------------------------
-            # If any lower(dictionary) true/false variable
-            # is not 'true', then it is set to False.
-            # ----------------------------------------------
+            # If any lower(dictionary) true/false
+            # variable is 'true' or 'false', set it to
+            # the boolean True or False, else print an
+            # error, the instructions, and exit.
+            # ----------------------------------------
             if v.lower() == 'true':
                 config_dict[k] = True
-            else:
+            elif v.lower() == 'false':
                 config_dict[k] = False
+            else:
+                print(print_opt_errors('truefalse', tfk=k, tfv=v))
+                usage()
+
         # Set the global variable
         # -----------------------
         myvars[k] = config_dict[k]
