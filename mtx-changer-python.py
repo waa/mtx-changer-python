@@ -11,7 +11,6 @@
 #
 #                 - Initially this script will add the following features:
 #
-#                   - Clear logging of all actions when debug = True.
 #                   - Control what information gets logged by setting the
 #                     'debug_level' variable.
 #                   - Automatic tape drive cleaning. Can be configured to
@@ -123,8 +122,8 @@ prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'debug', 'include_import_export',
-                           'inventory', 'log_cfg_vars', 'offline', 'strip_jobname', 'vxa_packetloader']
+cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'include_import_export', 'inventory',
+                           'log_cfg_vars', 'offline', 'strip_jobname', 'vxa_packetloader']
 
 # Initialize these to satisfy the defaults
 # in the do_load() and do_unload() functions.
@@ -928,10 +927,10 @@ for var in cfg_file_true_false_lst:
         print(print_opt_errors('truefalse', tfk=var, tfv=str(config_dict[var])))
         usage()
 
-# If debug is enabled at a minimum
+# If debug_level is at a minimum
 # level of 10, log command line
 # variables to log file
-# --------------------------------
+# ------------------------------
 log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
