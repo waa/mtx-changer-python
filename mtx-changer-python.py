@@ -926,7 +926,6 @@ else:
 # ---------------------------
 for var in cfg_file_true_false_lst:
     if config_dict[var] not in (True, False):
-        log('The variable ' + var + ' (' + str(config_dict[var]) + ') must be a boolean \'True\' or \'False\'.', 10)
         print(print_opt_errors('truefalse', tfk=var, tfv=str(config_dict[var])))
         usage()
 
