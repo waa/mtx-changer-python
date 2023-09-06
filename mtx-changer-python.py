@@ -112,7 +112,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.08'
+version = '1.09'
 reldate = 'September 05, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -209,7 +209,7 @@ def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
     elif opt == 'bin':
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
     elif opt == 'truefalse':
-        error_txt = 'The variable ' + tfk + ' (' + tfv + ') must be a boolean \'True\' or \'False\'.'
+        error_txt = 'The variable \'' + tfk + '\' (' + tfv + ') must be a boolean \'True\' or \'False\'.'
     return '\n' + error_txt
 
 def do_chk_cmd_result(result, cmd):
@@ -881,31 +881,30 @@ if args['--config'] is not None:
             print(print_opt_errors('section'))
             sys.exit(1)
 
-    # For each key in the config_dict dictionary, make its key name
-    # into a global variable and assign it the key's dictionary value.
-    # https://www.pythonforbeginners.com/basics/convert-string-to-variable-name-in-python
-    # -----------------------------------------------------------------------------------
-    myvars = vars()
-    for k, v in config_dict.items():
-        if k in cfg_file_true_false_lst:
-            # Convert all the True/False strings to booleans on the fly
-            # ---------------------------------------------------------
-            # If any lower(dictionary) true/false
-            # variable is 'true' or 'false', set it to
-            # the boolean True or False, else print an
-            # error, the instructions, and exit.
-            # ----------------------------------------
-            if v.lower() == 'true':
-                config_dict[k] = True
-            elif v.lower() == 'false':
-                config_dict[k] = False
-            else:
-                print(print_opt_errors('truefalse', tfk=k, tfv=v))
-                usage()
+# For each key in the config_dict dictionary, make its key name
+# into a global variable and assign it the key's dictionary value.
+# https://www.pythonforbeginners.com/basics/convert-string-to-variable-name-in-python
+# -----------------------------------------------------------------------------------
+myvars = vars()
+for k, v in config_dict.items():
+    if k in cfg_file_true_false_lst:
+        # Convert all the True/False strings to booleans on the fly
+        # ---------------------------------------------------------
+        # If any lower(dictionary) true/false
+        # variable is 'true' or 'false', set it to
+        # the boolean True or False, else print an
+        # error, the instructions, and exit.
+        # ----------------------------------------
+        if v.lower() == 'true':
+            config_dict[k] = True
+        elif v.lower() == 'false':
+            config_dict[k] = False
+        else:
+            pass
 
-        # Set the global variable
-        # -----------------------
-        myvars[k] = config_dict[k]
+    # Set the global variable
+    # -----------------------
+    myvars[k] = config_dict[k]
 
 # Assign variables from args set
 # ------------------------------
@@ -922,6 +921,14 @@ if args['<jobname>'] is not None and strip_jobname:
     jobname = re.sub('(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['<jobname>'])
 else:
     jobname = args['<jobname>']
+
+# Check the boolean variables
+# ---------------------------
+for var in cfg_file_true_false_lst:
+    if config_dict[var] not in (True, False):
+        log('The variable ' + var + ' (' + str(config_dict[var]) + ') must be a boolean \'True\' or \'False\'.', 10)
+        print(print_opt_errors('truefalse', tfk=var, tfv=str(config_dict[var])))
+        usage()
 
 # If debug is enabled at a minimum
 # level of 10, log command line
