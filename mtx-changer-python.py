@@ -112,8 +112,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.09'
-reldate = 'September 05, 2023'
+version = '1.10'
+reldate = 'September 06, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -180,12 +180,11 @@ def usage():
 
 def log(text, level):
     'Given some text and a debug level, write the text to the mtx_log_file.'
-    if debug:
-        if level <= int(debug_level):
-            with open(mtx_log_file, 'a+') as file:
-                file.write(('\n' if '[ Starting ' in text else '') + now() + ' - ' + (chgr_name + ' - ' if len(chgr_name) != 0 else '') \
-                + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') else (jobname \
-                + ' - ' if jobname is not None else '')) + text.rstrip('\n') + '\n')
+    if level <= int(debug_level):
+        with open(mtx_log_file, 'a+') as file:
+            file.write(('\n' if '[ Starting ' in text else '') + now() + ' - ' + (chgr_name + ' - ' if len(chgr_name) != 0 else '') \
+            + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') else (jobname \
+            + ' - ' if jobname is not None else '')) + text.rstrip('\n') + '\n')
 
 def log_cmd_results(result):
     'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
