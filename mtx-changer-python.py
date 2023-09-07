@@ -111,8 +111,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.10'
-reldate = 'September 06, 2023'
+version = '1.11'
+reldate = 'September 07, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -351,7 +351,7 @@ def do_loaded():
         slot_and_vol_loaded = (re.sub('^Data Transfer Element.*Element (\d+) Loaded.*= (\w+)', '\\1 \\2', drive_loaded_line.group(0))).split()
         slot_loaded = slot_and_vol_loaded[0]
         vol_loaded = slot_and_vol_loaded[1]
-        log('Drive index ' + drive_index + ' is loaded with volume ' + vol_loaded + ' from slot ' + slot_loaded, 20)
+        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded with volume ' + vol_loaded + ' from slot ' + slot_loaded, 20)
         log('do_loaded output: ' + slot_loaded, 40)
         return slot_loaded
     else:
@@ -445,6 +445,9 @@ def do_getvolname():
     # If mtx_cmd is transfer we need to return src_vol and dst_vol
     # ------------------------------------------------------------
     log('In function: do_getvolname()', 50)
+    # Make 'all_slots' global since it is used
+    # by the chk_for_cln_tapes() function
+    # ----------------------------------------
     global all_slots
     # Prevent calling do_listall() twice;
     # Once for src_vol and once for dst_vol
@@ -456,6 +459,9 @@ def do_getvolname():
             src_vol = vol.group(1)
         else:
             src_vol = ''
+        # Remember, for the transfer command, the SD sends the destination
+        # slot in the DriveDevice position in the command line options.
+        # ----------------------------------------------------------------
         vol = re.search('[SI]:' + drive_device + ':.:(.*)', all_slots)
         if vol:
             dst_vol = vol.group(1)
@@ -468,14 +474,19 @@ def do_getvolname():
             return vol.group(1)
         else:
             # Slot we are loading might be in a drive
-            # ---------------------------------------
+            # TODO: In do_load(), let's fail due to this!
+            # -------------------------------------------
             vol = re.search('D:' + drive_index + ':F:\d+:(.*)', all_slots)
             if vol:
                 return vol.group(1)
             else:
                 return ''
     elif mtx_cmd == 'unload':
-        vol = re.search('D:' + drive_index + ':.:' + slot + ':(.*)', all_slots)
+        # We do not care about the volume name in the Drive. If there
+        # is one, it is already logged by the do_getvolname() function.
+        # We only care to know the volume's name if the destination slot is full
+        # ----------------------------------------------------------------------
+        vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
         if vol:
             return vol.group(1)
         else:
@@ -695,7 +706,12 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to load a tape into a drive that is full
     # ------------------------------------------------------------
     if do_loaded() != '0':
-        log('Drive is loaded, exiting with return code 1', 20)
+        log('Drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') is loaded, exiting with return code 1', 20)
+        return 1
+    # Don't bother trying to load a tape from a slot that is empty
+    # ------------------------------------------------------------
+    elif volume == '':
+        log('Slot ' + slt + ' is empty, exiting with return code 1', 20)
         return 1
     else:
         cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
@@ -749,8 +765,13 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to unload an empty drive
     # --------------------------------------------
     if do_loaded() == '0':
-        log('Drive is empty, exiting with return code 0', 20)
+        log('Drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') is empty, exiting with return code 0', 20)
         return 0
+    # Don't bother trying to unload a tape into a full slot
+    # -----------------------------------------------------
+    elif vol != '':
+        log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
+        return 1
     else:
         if offline:
             log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
