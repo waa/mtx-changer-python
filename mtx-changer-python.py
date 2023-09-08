@@ -710,7 +710,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         return 1
     # Don't bother trying to load a tape from a slot that is empty
     # ------------------------------------------------------------
-    elif volume == '':
+    elif vol == '':
         log('Slot ' + slt + ' is empty, exiting with return code 1', 20)
         return 1
     else:
@@ -769,9 +769,9 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         return 0
     # Don't bother trying to unload a tape into a full slot
     # -----------------------------------------------------
-    elif vol != '':
-        log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
-        return 1
+    # elif slt != '':
+    #     log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
+    #     return 1
     else:
         if offline:
             log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
