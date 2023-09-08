@@ -301,6 +301,8 @@ def get_ready_str():
         return 'No Additional Sense'
     elif uname == 'FreeBSD':
         return 'Current Driver State: at rest.'
+    elif uname == 'OpenBSD':
+        return 'ds=3<Mounted>'
     else:
         print(print_opt_errors('uname'))
         usage()
@@ -630,6 +632,7 @@ def do_checkdrive():
     if auto_clean:
         cln_tapes = chk_for_cln_tapes()
         if len(cln_tapes) == 0:
+            log('Skipping automatic cleaning.', 20)
             # Return to the do_unload() function with 1 because we cannot clean a
             # drive device without a cleaning tape, but the do_unload function that
             # called us has already successfully unloaded the tape before it called
@@ -741,7 +744,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             log('A cleaning tape was just loaded. Will wait (' + clean_wait + ') \'clean_wait\' seconds, then unload it.', 20)
             sleep(int(clean_wait))
             log('Done waiting (' + clean_wait + ') \'clean_wait\' seconds', 30)
-            do_unload(slt, drv_dev, drv_idx, vol, cln = True)
+            do_unload(slt, drv_dev, drv_idx, vol, cln=True)
         else:
             # Sleep load_sleep seconds after the drive signals it is ready
             # ------------------------------------------------------------
@@ -768,6 +771,10 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         log('Drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') is empty, exiting with return code 0', 20)
         return 0
     # Don't bother trying to unload a tape into a full slot
+    # TODO: Fix this! We need to know what volume, if any,
+    #       is in a slot that we are unloading to. Maybe we
+    #       needs a new function for this, or adapt the 
+    #       do_loaded() function?
     # -----------------------------------------------------
     # elif slt != '':
     #     log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
@@ -815,7 +822,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # drive still reports it needs cleaning after it has been cleaned.
             # ---------------------------------------------------------------------------
             if cln:
-                log('A cleaning tape was just unloaded. Skipping tapeinfo tests.', 30)
+                log('A cleaning tape (' + vol + ') was just unloaded. Skipping tapeinfo tests.', 30)
             elif chk_drive:
                 log('The chk_drive variable is True. Calling do_checkdrive() function.', 20)
                 checkdrive = do_checkdrive()
