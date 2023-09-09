@@ -336,7 +336,7 @@ def do_inventory():
 def do_loaded():
     'If the drive is loaded, return the slot that is in it, otherwise return 0'
     log('In function: do_loaded()', 50)
-    log('Checking if drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded.', 20)
+    log('Checking if drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded', 20)
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
@@ -357,7 +357,7 @@ def do_loaded():
         log('do_loaded output: ' + slot_loaded, 40)
         return slot_loaded
     else:
-        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is empty.', 20)
+        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is empty', 20)
         log('do_loaded output: 0', 40)
         return '0'
 
@@ -498,7 +498,7 @@ def do_wait_for_drive():
     'Wait a maximum of load_wait seconds for the drive to become ready.'
     log('In function: do_wait_for_drive()', 50)
     s = 0
-    log('Waiting a maximum of ' + load_wait + ' seconds for drive to become ready.', 20)
+    log('Waiting a maximum of ' + load_wait + ' \'load_wait\' seconds for drive to become ready', 20)
     while s <= int(load_wait):
         cmd = mt_bin + ' -f ' + drive_device + ' status'
         log('mt command: ' + cmd, 30)
@@ -506,15 +506,16 @@ def do_wait_for_drive():
         log_cmd_results(result)
         do_chk_cmd_result(result, cmd)
         if re.search(ready, result.stdout):
-            log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready.', 20)
+            log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready', 20)
             break
         log('Device ' + drive_device + ' (drive index: ' + drive_index + ') - not ready, sleeping for one second and retrying...', 20)
         sleep(1)
         s += 1
     if s == int(load_wait) + 1:
-        log('The maximum \'load_wait\' time of ' + load_wait + ' seconds has been reached.', 20)
+        log('The maximum \'load_wait\' time of ' + load_wait + ' seconds has been reached', 20)
         log('Timeout waiting for drive device ' + drive_device + ' (drive index: ' + drive_index + ')'
-            + ' to signal that it is loaded. Perhaps the Device\'s "DriveIndex" is incorrect.', 20)
+            + ' to signal that it is loaded', 20)
+        log('Perhaps the Device\'s "DriveIndex" is incorrect', 20)
         log('Exiting with return code 1', 20)
         return 1
     else:
@@ -543,18 +544,18 @@ def chk_for_cln_tapes():
 def do_clean(cln_tapes):
     'Given the cln_tapes list of available cleaning tapes, randomly pick one and load it.'
     log('In function: do_clean()', 50)
-    log('Selecting a cleaning tape.', 20)
+    log('Selecting a cleaning tape', 20)
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
     log('Will load cleaning tape (' + cln_vol + ') from slot (' + cln_slot \
         + ') into drive device ' + drive_device + ' (drive index: ' + drive_index + ')', 20)
-    do_load(cln_slot, drive_device, drive_index, cln_vol, cln = True)
+    do_load(cln_slot, drive_device, drive_index, cln_vol, cln=True)
 
 def do_get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
     log('In function: do_get_sg_node()', 50)
-    log('Determining the tape drive\'s scsi generic device node required by tapeinfo.', 20)
+    log('Determining the tape drive\'s scsi generic device node required by tapeinfo', 20)
     if uname == 'Linux':
         # Use `lsscsi` on Linux to always identify the
         # correct scsi generic device node on-the-fly.
@@ -650,7 +651,7 @@ def do_checkdrive():
     if auto_clean:
         cln_tapes = chk_for_cln_tapes()
         if len(cln_tapes) == 0:
-            log('Skipping automatic cleaning.', 20)
+            log('Skipping automatic cleaning', 20)
             # Return to the do_unload() function with 1 because we cannot clean a
             # drive device without a cleaning tape, but the do_unload function that
             # called us has already successfully unloaded the tape before it called
@@ -691,14 +692,19 @@ def do_checkdrive():
                 break
         if clean_drive:
             if auto_clean:
-                log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True. Calling do_clean() function.', 20)
+                log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True. Calling do_clean() function', 20)
                 do_clean(cln_tapes)
+                # Call the do_tapealerts() function one more time just to clear out the leftover alert:
+                # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
+                # -------------------------------------------------------------------------------------
+                log('INFO: Calling do_tapealerts() one more time to clear the \'TapeAlert[11]: Cleaning Media...\' alert', 20)
+                do_tapealerts(sg, clr=True)
             else:
-                log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False. Skipping cleaning.', 20)
+                log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False. Skipping cleaning', 20)
         else:
-            log('No "Drive needs cleaning" tape alerts detected.', 20)
+            log('No "Drive needs cleaning" tape alerts detected', 20)
     else:
-        log('No tape alerts detected.', 20)
+        log('No tape alerts detected', 20)
     # Now we we need to just return
     # to the do_unload() function
     # -----------------------------
@@ -750,7 +756,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         # waiting here instead of the load_sleep time
         # ----------------------------------------------------
         if cln:
-            log('A cleaning tape was just loaded. Will wait (' + clean_wait + ') \'clean_wait\' seconds, then unload it.', 20)
+            log('A cleaning tape was just loaded. Will wait (' + clean_wait + ') \'clean_wait\' seconds, then unload it', 20)
             sleep(int(clean_wait))
             log('Done waiting (' + clean_wait + ') \'clean_wait\' seconds', 30)
             do_unload(slt, drv_dev, drv_idx, vol, cln=True)
@@ -758,7 +764,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # Sleep load_sleep seconds after the drive signals it is ready
             # ------------------------------------------------------------
             if int(load_sleep) != 0:
-                log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle.', 20)
+                log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle', 20)
                 sleep(int(load_sleep))
         if not cln:
             return do_wait_for_drive()
@@ -787,7 +793,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     else:
         if offline:
             log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
-                + ' offline command before unloading it.', 30)
+                + ' offline command before unloading it', 30)
             cmd = mt_bin + ' -f ' + drv_dev + ' offline'
             log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
@@ -795,7 +801,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             do_chk_cmd_result(result, cmd)
             if int(offline_sleep) != 0:
                 log('Sleeping for \'offline_sleep\' time of ' + offline_sleep 
-                    + ' seconds to let the drive settle before unloading it.', 20)
+                    + ' seconds to let the drive settle before unloading it', 20)
                 sleep(int(offline_sleep))
         cmd = mtx_bin + ' -f ' + chgr_device + ' unload ' + slt + ' ' + drv_idx
         log('Unloading volume' + (' (' + vol + ')' if vol != '' else '') + ' from drive device ' \
@@ -827,9 +833,9 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # drive still reports it needs cleaning after it has been cleaned.
             # ---------------------------------------------------------------------------
             if cln:
-                log('A cleaning tape (' + vol + ') was just unloaded. Skipping tapeinfo tests.', 30)
+                log('A cleaning tape (' + vol + ') was just unloaded, skipping tapeinfo tests', 20)
             elif chk_drive:
-                log('The chk_drive variable is True. Calling do_checkdrive() function.', 20)
+                log('The chk_drive variable is True, calling do_checkdrive() function', 20)
                 checkdrive = do_checkdrive()
                 if checkdrive == 1:
                     # I think there is nothing to do here. We could not get an sg
@@ -841,9 +847,9 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                         + ' with return code ' + str(result.returncode), 20)
                     return 0
             else:
-                log('The chk_drive variable is False. Skipping tapeinfo tests.', 20)
+                log('The chk_drive variable is False, skipping tapeinfo tests', 20)
             log('Exiting do_unload() volume ' + ('(' + vol + ')' if vol != '' else '') \
-                + ' with return code ' + str(result.returncode), 20)
+                + ' with return code ' + str(result.returncode), 50)
     return result.returncode
 
 def do_transfer():
@@ -856,7 +862,7 @@ def do_transfer():
     log('Transferring volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot '
         + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' ), 20)
     if volume[0] == '' or volume[1] != '':
-       fail_txt = 'The source slot is empty, or the destination slot is full. Will not even attempt the transfer.'
+       fail_txt = 'The source slot is empty, or the destination slot is full, will not even attempt the transfer'
        log(fail_txt, 20)
        log('Exiting with return code 1', 20)
        print('Err: ' + fail_txt)
