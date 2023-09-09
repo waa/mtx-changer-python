@@ -111,8 +111,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.11'
-reldate = 'September 07, 2023'
+version = '1.12'
+reldate = 'September 08, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -442,7 +442,7 @@ def do_listall():
     log('listall output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
 
-def do_getvolname():
+def do_getvolname(cln_slot=None):
     'Given a slot (or slot and device in the case of a transfer) return the volume name(s).'
     # If mtx_cmd is transfer we need to return src_vol and dst_vol
     # ------------------------------------------------------------
@@ -488,7 +488,7 @@ def do_getvolname():
         # is one, it is already logged by the do_getvolname() function.
         # We only care to know the volume's name if the destination slot is full
         # ----------------------------------------------------------------------
-        vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
+        vol = re.search('[SI]:' + str(cln_slot) + ':.:(.*)', all_slots)
         if vol:
             return vol.group(1)
         else:
@@ -624,6 +624,24 @@ def do_get_sg_node():
         log('Failed to identify an sg node device for drive device ' + drive_device, 30)
         return 1
 
+def do_tapealerts(sg, clr=False):
+    'Call the tapeinfo_bin and return any tape alerts.'
+    # Call tapeinfo and parse for alerts
+    # ----------------------------------
+    cmd = tapeinfo_bin + ' -f ' + sg
+    log(('Clearing tapeinfo \'TapeAlert[11]: Cleaning Media...\' on' if clr else 'Checking') + ' drive (sg node: ' + sg + ') with tapeinfo utility', 20)
+    log('tapeinfo command: ' + cmd, 30)
+    result = get_shell_result(cmd)
+    log_cmd_results(result)
+    do_chk_cmd_result(result, cmd)
+    # Some example tapeinfo output when 'TapeAlert' alert lines exist:
+    # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
+    # TapeAlert[15]: Undefined.
+    # TapeAlert[20]:     Clean Now: The tape drive neads cleaning NOW.
+    # TapeAlert[21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
+    # -------------------------------------------------------------------------------------
+    return re.findall('TapeAlert\[(\d+)\]: +(.*)', result.stdout)
+
 def do_checkdrive():
     'Given a tape drive /dev/sg# node, check tapeinfo output, call do_clean() if "clean drive" alerts exist.'
     log('In function: do_checkdrive()', 50)
@@ -653,20 +671,11 @@ def do_checkdrive():
         # ---------------------------------------------------------------------
         return 1
 
-    # Call tapeinfo and parse for alerts
-    # ----------------------------------
-    cmd = tapeinfo_bin + ' -f ' + sg
-    log('Checking drive (sg node: ' + sg + ') with tapeinfo utility.', 20)
-    log('tapeinfo command: ' + cmd, 30)
-    result = get_shell_result(cmd)
-    log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
-    # Example tapeinfo output when 'TapeAlert' alert lines exist:
-    # TapeAlert[15]: Undefined.
-    # TapeAlert[20]:     Clean Now: The tape drive neads cleaning NOW.
-    # TapeAlert[21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
-    # -------------------------------------------------------------------------------------
-    tapealerts = re.findall('TapeAlert\[(\d+)\]: +(.*)', result.stdout)
+    # Call the do_tapealerts() function and
+    # check if we have any cleaning alerts
+    # -------------------------------------
+    log('INFO: Calling do_tapealerts() to check for any tapeinfo \'Cleaning required\' alerts', 20)
+    tapealerts = do_tapealerts(sg)
     if len(tapealerts) > 0:
         clean_drive = False
         log('INFO: Found ' + str(len(tapealerts)) + ' tape alert' + ('s' if len(tapealerts) > 1 else '') \
@@ -771,14 +780,10 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         log('Drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') is empty, exiting with return code 0', 20)
         return 0
     # Don't bother trying to unload a tape into a full slot
-    # TODO: Fix this! We need to know what volume, if any,
-    #       is in a slot that we are unloading to. Maybe we
-    #       needs a new function for this, or adapt the 
-    #       do_loaded() function?
     # -----------------------------------------------------
-    # elif slt != '':
-    #     log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
-    #     return 1
+    elif do_getvolname(slt) != '':
+        log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
+        return 1
     else:
         if offline:
             log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
