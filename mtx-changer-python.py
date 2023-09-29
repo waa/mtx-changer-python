@@ -111,8 +111,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.13'
-reldate = 'September 08, 2023'
+version = '1.14'
+reldate = 'September 28, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -227,14 +227,13 @@ def get_shell_result(cmd):
 def do_get_uname():
     'Get the OS uname to be use in other tests.'
     log('In function: do_get_uname()', 50)
-    global uname
     cmd = uname_bin
     log('Getting OS\'s uname so we can use it for other tests.', 40)
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
     do_chk_cmd_result(result, cmd)
-    uname = result.stdout.rstrip('\n')
+    return result.stdout.rstrip('\n')
 
 def do_cmd_exists(cmd):
     'Check that a binary command exists and is executable.'
@@ -353,7 +352,7 @@ def do_loaded():
         slot_and_vol_loaded = (re.sub('^Data Transfer Element.*Element (\d+) Loaded.*= (\w+)', '\\1 \\2', drive_loaded_line.group(0))).split()
         slot_loaded = slot_and_vol_loaded[0]
         vol_loaded = slot_and_vol_loaded[1]
-        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded with volume ' + vol_loaded + ' from slot ' + slot_loaded, 20)
+        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded with volume (' + vol_loaded + ') from slot ' + slot_loaded, 20)
         log('do_loaded output: ' + slot_loaded, 40)
         return slot_loaded
     else:
@@ -473,28 +472,30 @@ def do_getvolname(cln_slot=None):
     elif mtx_cmd == 'load':
         vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
         if vol:
-            return vol.group(1)
+            return vol.group(1), ''
         else:
             # Slot we are loading might be in a drive
             # TODO: In do_load(), let's fail due to this!
             # -------------------------------------------
             vol = re.search('D:' + drive_index + ':F:\d+:(.*)', all_slots)
             if vol:
-                return vol.group(1)
+                return vol.group(1), ''
             else:
-                return ''
+                return '', ''
     elif mtx_cmd == 'unload':
-        # We do not care about the volume name in the Drive. If there
-        # is one, it is already logged by the do_getvolname() function.
-        # We only care to know the volume's name if the destination slot is full
-        # ----------------------------------------------------------------------
-        vol = re.search('[SI]:' + str(cln_slot) + ':.:(.*)', all_slots)
+        vol = re.search('D:' + drive_index + ':F:\d+:(.*)', all_slots)
         if vol:
-            return vol.group(1)
+            src_vol = vol.group(1)
         else:
-            return ''
+            src_vol = ''
+        vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
+        if vol:
+            dst_vol = vol.group(1)
+        else:
+            dst_vol = ''
+        return src_vol, dst_vol
 
-def do_wait_for_drive():
+def do_wait_for_drive(vol):
     'Wait a maximum of load_wait seconds for the drive to become ready.'
     log('In function: do_wait_for_drive()', 50)
     s = 0
@@ -519,7 +520,7 @@ def do_wait_for_drive():
         log('Exiting with return code 1', 20)
         return 1
     else:
-        log('Successfully loaded volume' + (' (' + volume + ')' if volume != '' else '') + ' from slot ' + slot \
+        log('Successfully loaded volume' + (' (' + vol[0] + ')' if volume != '' else '') + ' from slot ' + slot \
             + ' to drive device ' + drive_device + ' (drive index: ' + drive_index + ')', 20)
         log('Exiting with return code 0', 20)
         return 0
@@ -548,9 +549,9 @@ def do_clean(cln_tapes):
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
-    log('Will load cleaning tape (' + cln_vol + ') from slot (' + cln_slot \
-        + ') into drive device ' + drive_device + ' (drive index: ' + drive_index + ')', 20)
-    do_load(cln_slot, drive_device, drive_index, cln_vol, cln=True)
+    log('Will load cleaning tape (' + cln_vol + ') from slot ' + cln_slot \
+        + ' into drive device ' + drive_device + ' (drive index: ' + drive_index + ')', 20)
+    do_load(cln_slot, drive_device, drive_index, (cln_vol, ''), cln=True)
 
 def do_get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
@@ -724,7 +725,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to load a tape into a drive that is full
     # ------------------------------------------------------------
     if do_loaded() != '0':
-        log('Drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') is loaded, exiting with return code 1', 20)
+        log('Exiting with return code 1', 20)
         return 1
     # Don't bother trying to load a tape from a slot that is empty
     # ------------------------------------------------------------
@@ -733,7 +734,8 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         return 1
     else:
         cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
-        log('Loading volume' + (' (' + vol + ')' if vol != '' else '') + ' from slot ' + slt \
+        log('Loading ' + ('cleaning tape' if cln else 'volume') \
+            + (' (' + vol[0] + ')' if vol[0] != '' else '') + ' from slot ' + slt \
             + ' to drive device ' + drv_dev + ' (drive index: ' + drv_idx + ')', 20)
         log('mtx command: ' + cmd, 30)
         result = get_shell_result(cmd)
@@ -766,8 +768,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             if int(load_sleep) != 0:
                 log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle', 20)
                 sleep(int(load_sleep))
-        if not cln:
-            return do_wait_for_drive()
+            return do_wait_for_drive(vol)
 
 def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     'Unload a tape from a drive to a slot.'
@@ -783,12 +784,13 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to unload an empty drive
     # --------------------------------------------
     if do_loaded() == '0':
-        log('Drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') is empty, exiting with return code 0', 20)
+        log('Exiting with return code 0', 20)
         return 0
     # Don't bother trying to unload a tape into a full slot
     # -----------------------------------------------------
-    elif do_getvolname(slt) != '':
-        log('Slot ' + slt + ' is full with volume ' + vol + ', exiting with return code 1', 20)
+    elif vol[1] != '':
+        log('Slot ' + slt + ' is full with volume (' + vol[1] + ')', 20)
+        log('Exiting with return code 1', 20)
         return 1
     else:
         if offline:
@@ -804,7 +806,8 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                     + ' seconds to let the drive settle before unloading it', 20)
                 sleep(int(offline_sleep))
         cmd = mtx_bin + ' -f ' + chgr_device + ' unload ' + slt + ' ' + drv_idx
-        log('Unloading volume' + (' (' + vol + ')' if vol != '' else '') + ' from drive device ' \
+        log('Unloading ' + ('cleaning tape' if cln else 'volume') \
+            + (' (' + vol[0] + ') ' if vol[0] != '' else '') + 'from drive device ' \
             + drv_dev + ' (drive index: ' + drv_idx + ')' + ' to slot ' + slt, 20)
         log('mtx command: ' + cmd, 30)
         result = get_shell_result(cmd)
@@ -823,8 +826,9 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # -------------------------------------------------------------------
             print(fail_txt + ' Err: ' + result.stderr)
         else:
-            log('Successfully unloaded volume ' + ('(' + vol + ') ' if vol != '' else '') \
-                + 'from drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') to slot ' + slt, 20)
+            log('Successfully unloaded ' + ('cleaning tape' if cln else 'volume') \
+                + ' (' + (vol[0] + ') ' if vol[0] != '' else '') + 'from drive device ' \
+                + drv_dev + ' (drive index: ' + drv_idx + ') to slot ' + slt, 20)
             # After successful unload, check to see if the tape drive should be cleaned.
             # We need to intercept the process here, before we exit from the unload,
             # otherwise the SD will move on and try to load the next tape.
@@ -833,7 +837,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # drive still reports it needs cleaning after it has been cleaned.
             # ---------------------------------------------------------------------------
             if cln:
-                log('A cleaning tape (' + vol + ') was just unloaded, skipping tapeinfo tests', 20)
+                log('A cleaning tape (' + vol[0] + ') was just unloaded, skipping tapeinfo tests', 20)
             elif chk_drive:
                 log('The chk_drive variable is True, calling do_checkdrive() function', 20)
                 checkdrive = do_checkdrive()
@@ -848,8 +852,8 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                     return 0
             else:
                 log('The chk_drive variable is False, skipping tapeinfo tests', 20)
-            log('Exiting do_unload() volume ' + ('(' + vol + ')' if vol != '' else '') \
-                + ' with return code ' + str(result.returncode), 50)
+            log('Exiting do_unload() volume ' + ('(' + vol[0] + ') ' if vol != '' else '') \
+                + 'with return code ' + str(result.returncode), 50)
     return result.returncode
 
 def do_transfer():
@@ -993,7 +997,7 @@ log('-'*22, 10)
 
 # Get the OS's uname to be used in other tests
 # --------------------------------------------
-do_get_uname()
+uname = do_get_uname()
 
 # Check that the binaries exist and that they are executable.
 # NOTE: A small chicken and egg issue exists here because we call
