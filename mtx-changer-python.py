@@ -745,7 +745,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         if result.returncode != 0:
             log('ERROR calling: ' + cmd, 20)
             fail_txt = 'Failed to load drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
-                     + ('with volume (' + vol + ') ' if vol != '' else '') + 'from slot ' + slt
+                     + ('with volume (' + vol[0] + ') ' if vol[0] != '' else '') + 'from slot ' + slt
             log(fail_txt, 20)
             log('Err: ' + result.stderr, 20)
             log('Exiting with return code ' + str(result.returncode), 20)
@@ -817,7 +817,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         if result.returncode != 0:
             log('ERROR calling: ' + cmd, 20)
             fail_txt = 'Failed to unload drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
-                     + ('with volume (' + vol + ') ' if vol != '' else '') + 'to slot ' + slt
+                     + ('with volume (' + vol[0] + ') ' if vol[0] != '' else '') + 'to slot ' + slt
             log(fail_txt, 20)
             log('Err: ' + result.stderr, 20)
             log('Exiting with return code ' + str(result.returncode), 20)
@@ -879,7 +879,7 @@ def do_transfer():
        # ------------------------------------
        if result.returncode != 0:
            log('ERROR calling: ' + cmd, 20)
-           fail_txt = 'Unsuccessfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot ' \
+           fail_txt = 'Failed to transfer volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot ' \
                     + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' )
            log(fail_txt, 20)
            log('Err: ' + result.stderr, 20)
