@@ -538,8 +538,7 @@ def chk_for_cln_tapes():
     if len(cln_tapes) > 0:
         log('Found the following cleaning tapes: ' + str(cln_tapes), 20)
     else:
-        log('No cleaning tapes found in library.', 20)
-        log('Skipping automatic cleaning.', 20)
+        log('No cleaning tapes found in library', 20)
     return cln_tapes
 
 def do_clean(cln_tapes):
@@ -847,7 +846,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                     # cannot run tapeinfo but the drive has been successfully
                     # unloaded, so we just need to log and exit cleanly here.
                     # -----------------------------------------------------------
-                    log('Exiting do_unload() volume ' + ('(' + vol + ')' if vol != '' else '') \
+                    log('Exiting do_unload() volume ' + ('(' + vol[0] + ')' if vol != '' else '') \
                         + ' with return code ' + str(result.returncode), 20)
                     return 0
             else:
