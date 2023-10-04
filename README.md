@@ -1,14 +1,15 @@
 # mtx-changer-python.py
 - A drop-in replacement for Bacula's original bash/perl `mtx-changer` script to control tape libraries, with additional features:
-  - Clear logging of all actions when debug = True.
-  - Control what information gets logged by setting the 'debug_level' variable.
-  - Automatic tape drive cleaning. Can be configured to check a drive's `tapeinfo` status after an unload and automatically load a cleaning tape, wait, then unload it.
+  - Clear logging of actions when 'debug_level' != 0
+  - Control what information gets logged by setting the 'debug_level' variable
+  - Automatic tape drive cleaning.
+    - Can be configured to check a drive's `tapeinfo` status after an unload, automatically find and load a cleaning tape, wait, then unload it
 
 Please edit the `mtx-changer-python.conf` configuration file to customize what (if anything) gets logged to the debug log file, and to set other custom variables for the library or libraries managed by the SD.
 
-This mtx-changer-python.py script is meant to be called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, or to issue queries to the library to get information.
+This mtx-changer-python.py script is meant to be called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, transfer tapes to another slor, or to issue queries to the library to get information about volumes loaded in drives and slots.
 
-To use the mtx-changer-python.py script with an autochanger, it must be configured in the SD's Autochanger `Changer Command` setting like:
+To use the mtx-changer-python.py script with an autochanger, it must be configured in the Bacula SD's Autochanger `Changer Command` setting like:
 ```
 Autochanger {
   Name = AutochangerName
