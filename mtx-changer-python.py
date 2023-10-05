@@ -4,12 +4,11 @@
 # - mtx-changer-python.py
 # ----------------------------------------------------------------------------
 #
-# - 20230529
 # - Bill Arlofski - This script is intended to be a drop-in replacement for
 #                   Bacula's original mtx-changer bash/perl script but with
 #                   more features.
 #
-#                 - Initially this script will add the following features:
+#                 - Initially this script adds the following features:
 #
 #                   - Control what information gets logged by setting the
 #                     'debug_level' variable.
@@ -256,14 +255,12 @@ def do_chk_bins():
             # -------------------------------------
             if (bin_var[0] in linux_bin_lst and uname == 'Linux') \
                 or (bin_var[0] in fbsd_bin_lst and uname == 'FreeBSD'):
-                # print('In list, right OS')
                 if do_cmd_exists(bin_var):
                     pass
                 else:
                     print(print_opt_errors('bin', bin_var))
                     usage()
             elif bin_var[0] not in linux_bin_lst and bin_var[0] not in fbsd_bin_lst:
-                # print('Not in either list')
                 if do_cmd_exists(bin_var):
                     pass
                 else:
@@ -271,7 +268,6 @@ def do_chk_bins():
                     usage()
             elif (bin_var[0] in linux_bin_lst and uname != 'Linux') \
                   or (bin_var[0] in fbsd_bin_lst and uname != 'FreeBSD'):
-                # print('In list, wrong OS')
                 pass
             else:
                 print(print_opt_errors('bin', bin_var))
@@ -352,7 +348,9 @@ def do_loaded():
         slot_and_vol_loaded = (re.sub('^Data Transfer Element.*Element (\d+) Loaded.*= (\w+)', '\\1 \\2', drive_loaded_line.group(0))).split()
         slot_loaded = slot_and_vol_loaded[0]
         vol_loaded = slot_and_vol_loaded[1]
-        log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded with volume (' + vol_loaded + ') from slot ' + slot_loaded, 20)
+        log('Drive device ' + drive_device + ' (drive index: ' \
+            + drive_index + ') is loaded with volume (' + vol_loaded \
+            + ') from slot ' + slot_loaded, 20)
         log('do_loaded output: ' + slot_loaded, 40)
         return slot_loaded
     else:
