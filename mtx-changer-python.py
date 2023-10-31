@@ -110,7 +110,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.16'
+version = '1.17'
 reldate = 'October 30, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -430,10 +430,10 @@ def do_listall():
     for element in mtx_elements_list:
         tmp_txt = re.sub('Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
         tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Empty(:VolumeTag){0,1}', 'S:\\1:E', tmp_txt)
+        tmp_txt = re.sub('Storage Element (\d+):Empty:VolumeTag', 'S:\\1:E', tmp_txt)
         tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
         if include_import_export:
-            tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty(:VolumeTag){0,1}', 'I:\\1:E', tmp_txt)
+            tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty:VolumeTag', 'I:\\1:E', tmp_txt)
             tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
         mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
     log('listall output:\n' + mtx_elements_txt, 40)
