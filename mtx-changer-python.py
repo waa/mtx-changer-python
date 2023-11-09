@@ -110,8 +110,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.18'
-reldate = 'November 01, 2023'
+version = '1.19'
+reldate = 'November 09, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -315,6 +315,7 @@ def do_slots():
     # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
     slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
+    log('Library ' + chgr_name + ' (' + chgr_device + ')' + ' has ' + slots + ' slots', 20)
     log('do_slots output: ' + slots, 40)
     return slots
 
@@ -378,8 +379,12 @@ def do_list():
     storage_elements_list = re.findall('Storage Element \d+:Full :.*\w', result.stdout)
     if include_import_export:
         importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
-    mtx_elements_list = data_transfer_elements_list + storage_elements_list \
-                      + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
+    # mtx_elements_list = data_transfer_elements_list + storage_elements_list \
+    #                   + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
+    mtx_elements_list = storage_elements_list \
+                      + (importexport_elements_list if 'importexport_elements_list' in locals() else []) \
+                      + data_transfer_elements_list
+
     # Parse the results of the status output and
     # format it the way the SD expects to see it.
     # -------------------------------------------
@@ -832,7 +837,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # Additionally when unloading a cleaning tape, we call do_unload()
             # with 'cln = True' so we do not end up in any loops - especially if the
             # drive still reports it needs cleaning after it has been cleaned.
-            # ---------------------------------------------------------------------------
+            # --------------------------------------------------------------------------
             if cln:
                 log('A cleaning tape (' + vol[0] + ') was just unloaded, skipping tapeinfo tests', 20)
             elif chk_drive:
