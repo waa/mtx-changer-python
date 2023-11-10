@@ -118,7 +118,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.20'
+version = '1.21'
 reldate = 'November 09, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -221,6 +221,8 @@ def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
     elif opt == 'truefalse':
         error_txt = 'The variable \'' + tfk + '\' (' + tfv + ') must be a boolean \'True\' or \'False\'.'
+    elif opt == 'mtx_cmd':
+        error_txt = 'The mtx_cmd variable \'' + mtx_cmd  + '\' is invalid.\nValid mtx_cmd choices are: ' + ', '.join(valid_mtx_cmd_lst)
     return '\n' + error_txt
 
 def do_chk_cmd_result(result, cmd):
@@ -917,6 +919,7 @@ def do_transfer():
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
+valid_mtx_cmd_lst = ['slots', 'list', 'listall', 'loaded', 'load', 'unload', 'transfer']
 
 # Check for and parse the configuration file first
 # ------------------------------------------------
@@ -966,6 +969,9 @@ for k, v in config_dict.items():
 # Assign variables from args set
 # ------------------------------
 mtx_cmd = args['<mtx_cmd>']
+if mtx_cmd not in valid_mtx_cmd_lst:
+    print(print_opt_errors('mtx_cmd'))
+    usage()
 chgr_device = args['<chgr_device>']
 drive_device = args['<drive_device>']
 drive_index = args['<drive_index>']
