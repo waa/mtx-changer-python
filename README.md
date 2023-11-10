@@ -7,40 +7,45 @@
 
 Please edit the `mtx-changer-python.conf` configuration file to customize what (if anything) gets logged to the debug log file, and to set other custom variables for the library or libraries managed by the SD.
 
-This mtx-changer-python.py script is meant to be called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, transfer tapes to another slor, or to issue queries to the library to get information about volumes loaded in drives and slots.
+This mtx-changer-python.py script is meant to be called by the Bacula Storage daemon (SD) to load/unload drives in a tape library, transfer tapes to another slot, or to issue queries to the library to get information about volumes loaded in drives and slots.
 
-To use the mtx-changer-python.py script with an autochanger, it must be configured in the Bacula SD's Autochanger `Changer Command` setting like:
+To use the mtx-changer-python.py script with an autochanger, it must be configured in the Bacula SD's Autochanger `ChangerCommand` setting like:
 ```
 Autochanger {
   Name = AutochangerName
   Description = "Autochanger with four drives"
   ChangerDevice = "/dev/tape/by-id/scsi-XXXXXXXXXX"
-  ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %j"    <---- Here
+  ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d"    <---- Here
   Device = Drive_0, Drive_1, Drive_2, Drive_3
 }
 ```
 
 Where the variables passed to the mtx-changer-python.py script by the Bacula SD are:
 ```
-%c - Library's changer device node. eg: /dev/tape/by-id/scsi-XXXXXXXXXX, or /dev/sgX
-%o - The command. Valid options: slots, list, listall, loaded, load, unload, transfer.
-%S - The one-based library slot to load/unload, or the source slot for the transfer command.
-%a - The drive's "ArchiveDevice". eg: /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
-     Or, the destination slot for the transfer command.
-%d - The zero-based drive index.
-%j - Optional job name. If present, it will be written to the log file after the timestamp.
+%c    - Library's changer device node. eg: /dev/tape/by-id/scsi-XXXXXXXXXX, or /dev/sgX
+%o    - The command. Valid options: slots, list, listall, loaded, load, unload, transfer.
+%S    - The one-based library slot to load/unload, or the source slot for the transfer command.
+%a    - The drive's "ArchiveDevice". eg: /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
+        Or, the destination slot for the transfer command.
+%d    - The zero-based drive index.
+-i %i - Optional jobid. If present, it will be written to the log file after the timestamp.
+-j %j - Optional job name. If present, it will be written to the log file after the job name.
 ```
 
-Instructions on which parameters are optional, which are required, and the order they must appear in:
+Instructions on which parameters are optional, which are required, and the order they must appear in are all described at the top of the mtx-changer-python.py script. Please read that first.
+
+Command line parameter use:
 ```
 Usage:
-mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
-mtx-changer-python.py -h | --help
-mtx-changer-python.py -v | --version
+    mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
+    mtx-changer-python.py -h | --help
+    mtx-changer-python.py -v | --version
 
 Options:
 -c, --config <config>     Configuration file. [default: /opt/bacula/scripts/mtx-changer-python.conf]
 -s, --section <section>   Section in configuration file. [default: DEFAULT]
+-i --jobid <jobid>        The JobId. [default: None]
+-j --jobname <jobname>    The Job name. [default: None]
 
 chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
 mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
@@ -48,10 +53,10 @@ slot                      The one-based library slot to load/unload, or the sour
 drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
                           Or, the destination slot for the transfer command.
 drive_index               The zero-based drive index.
-jobname                   Optional job name. If present, it will be written after the timestamp to the log file.
 
 -h, --help                Print this help message
 -v, --version             Print the script name and version
+
 ```
 
 ### Example command lines and outputs:
@@ -180,17 +185,17 @@ In this example, we load a tape from slot 30 into drive 1 and then unload it:
 
 Here we see that drive 0 is empty, and drive 1 is loaded with a tape from slot 30:
 ```
-./mtx-changer-python.py /root/chgr80 loaded X Y 0    # Drive index 0 is empty.
+./mtx-changer-python.py /root/chgr80 loaded X Y 0  # Drive index 0 is empty.
 0
 
-./mtx-changer-python.py /root/chgr80 loaded X Y 1    # Drive index 1 is loaded with a tape from slot 30
+./mtx-changer-python.py /root/chgr80 loaded X Y 1  # Drive index 1 is loaded with a tape from slot 30
 30
 ```
 The loaded command does not use the slot and drive device parameters (X, Y) but they must be present.
 
 - `transfer` will attempt to transfer a tape from one slot to another.
 
-The transfer command does not output anything to stdout except on error, which will be printed in the joblog by the SD. On successful load/unload of a tape from a slot to a drive, the script simply exits with return code 0, or it will exit with return code 1 on a failure.
+The transfer command does not output anything to stdout except on error, which will be printed in the joblog by the SD. On successful transfer of a tape from one slot to another, the script simply exits with return code 0, or it will exit with return code 1 on a failure.
 
 Here we attempt to transfer a full slot (31) to an empty slot (29) and the command is successful:
 ```
@@ -199,7 +204,7 @@ Here we attempt to transfer a full slot (31) to an empty slot (29) and the comma
 0
 ```
 
-Here we attempt to transfer a now empty slot (31) to a now full slot (29) and the command fails. Notice we have the failure reason printed to stdout. This would be printed in the joblog by the SD:
+Here we attempt to transfer a now empty slot (31) to a now full slot (29) and the command fails. Notice we have the failure reason printed to stdout. This will be printed in the joblog by the SD:
 ```
 # ./mtx-changer-python.py -c ./mtx-changer-python.conf /root/chgr80 transfer 29 31 X
 Err: The source slot is empty, or the destination slot is full. Will not even attempt the transfer
