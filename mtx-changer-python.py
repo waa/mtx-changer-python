@@ -29,21 +29,29 @@
 # Modified notes from the original bash/perl mtx-changer script
 # -------------------------------------------------------------
 # This script is called by the Bacula SD, configured in the
-# Autochanger's ChangerCommand setting like:
+# Autochanger's ChangerCommand setting like in this default example:
 #
-# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d %j"
+# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d"
 #
-# ./mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
+# Additionally, new, optional parameters such as a configuration file, configuration section,
+# a jobid, and jobname may also be specified:
 #
-# Options passed must be in the correct order and all <required> options must be passed to the script
-# at start. Bacula's SD will always pass all options specified on the ChangerCommand line even though
-# in some cases not all of them are needed.
+# mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
 #
-# In the example command line above, we can see that the '-c config' and '-s section' are optional but
-# must come before the other <required> options. The jobname is also optional and if passed,
-# it must after the other options.
+# All <required> parameters must be passed to the script and they must be in the correct order as listed above.
+# Bacula's SD will always pass all options specified on the ChangerCommand line even though in some cases not
+# all of them are needed.
 #
-#  Valid commands are:
+# In the example command line above, we can see that the parameters '-c config', '-s section', '-i jobid',
+# and '-j jobname' are optional but if used they must come before (or after) the other <required> parameters.
+#
+# For example, if you wanted to use a specific section in the default config file, and also wanted to have
+# the jobid and job name written to every line in the log file, the following ChangerCommand command line would work:
+#
+# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py -s My_Section -i %i -j %j %c %o %S %a %d"
+#
+#
+#  Valid '<mtx_cmd>' commands are:
 #  - list      List available volumes in slot:volume format.
 #  - listall   List all slots in one of the following formats:
 #              - For Drives:         D:drive index:F:slot:volume - D:0:F:5:G03005TA or for an empty drive:               D:3:E
@@ -110,7 +118,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.19'
+version = '1.20'
 reldate = 'November 09, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -143,13 +151,15 @@ fbsd_bin_lst = ['camcontrol_bin']
 # ------------------------
 doc_opt_str = """
 Usage:
-    mtx-changer-python.py [-c <config>] [-s <section>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index> [<jobname>]
+    mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
     mtx-changer-python.py -h | --help
     mtx-changer-python.py -v | --version
 
 Options:
 -c, --config <config>     Configuration file. [default: /opt/bacula/scripts/mtx-changer-python.conf]
 -s, --section <section>   Section in configuration file. [default: DEFAULT]
+-i --jobid <jobid>        The JobId. [default: None]
+-j --jobname <jobname>    The Job name. [default: None]
 
 chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
 mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
@@ -157,7 +167,6 @@ slot                      The one-based library slot to load/unload, or the sour
 drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
                           Or, the destination slot for the transfer command.
 drive_index               The zero-based drive index.
-jobname                   Optional job name. If present, it will be written after the timestamp to the log file.
 
 -h, --help                Print this help message
 -v, --version             Print the script name and version
@@ -178,11 +187,16 @@ def usage():
 
 def log(text, level):
     'Given some text and a debug level, write the text to the mtx_log_file.'
-    if level <= int(debug_level):
+    if level <= int(debug_level) and text != '':
         with open(mtx_log_file, 'a+') as file:
-            file.write(('\n' if '[ Starting ' in text else '') + now() + ' - ' + (chgr_name + ' - ' if len(chgr_name) != 0 else '') \
-            + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') else (jobname \
-            + ' - ' if jobname is not None else '')) + text.rstrip('\n') + '\n')
+            file.write(('\n' if '[ Starting ' in text else '') \
+            + now() + ' - ' \
+            + (chgr_name + ' ' if len(chgr_name) != 0 else '') \
+            + ('JobId: ' + jobid + ' ' if jobid not in ('', None, '*System*') \
+            else (jobid + ' ' if jobid is not None else '')) \
+            + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') \
+            else (jobname + ' ' if jobname is not None else '')) \
+            + text.rstrip('\n') + '\n')
 
 def log_cmd_results(result):
     'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
@@ -315,7 +329,7 @@ def do_slots():
     # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
     slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
-    log('Library ' + chgr_name + ' (' + chgr_device + ')' + ' has ' + slots + ' slots', 20)
+    log('Library' + (' ' + chgr_name if len(chgr_name) != 0 else '') + ' (' + chgr_device + ')' + ' has ' + slots + ' slots', 20)
     log('do_slots output: ' + slots, 40)
     return slots
 
@@ -956,14 +970,15 @@ chgr_device = args['<chgr_device>']
 drive_device = args['<drive_device>']
 drive_index = args['<drive_index>']
 slot = args['<slot>']
+jobid = args['--jobid']
 
 # Should we strip the long datestamp off
 # of the jobname passed to us by the SD?
 # --------------------------------------
-if args['<jobname>'] is not None and strip_jobname:
-    jobname = re.sub('(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['<jobname>'])
+if args['--jobname'] is not None and strip_jobname:
+    jobname = re.sub('(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['--jobname'])
 else:
-    jobname = args['<jobname>']
+    jobname = args['--jobname']
 
 # Check the boolean variables
 # ---------------------------
@@ -979,8 +994,9 @@ for var in cfg_file_true_false_lst:
 log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10)
 log('Config File: ' + args['--config'], 10)
 log('Config Section: ' + args['--section'], 10)
-log('Changer Name: ' + (chgr_name if chgr_name else 'No chgr_name specified'), 10)
-log('Job Name: ' + (jobname if jobname is not None else 'No Job Name specified'), 10)
+log(('Changer Name: ' + chgr_name if chgr_name else ''), 10)
+log(('JobId: ' + jobid if jobid is not None else ''), 10)
+log(('Job Name: ' + jobname if jobname is not None else ''), 10)
 log('Changer Device: ' + chgr_device, 10)
 log('Drive Device: ' + drive_device, 10)
 log('Command: ' + mtx_cmd, 10)
