@@ -50,6 +50,9 @@
 #
 # ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py -s My_Section -i %i -j %j %c %o %S %a %d"
 #
+# NOTE: The %i is not supported by the SD ChangerCommand in Bacula Community before 15.0.2
+#       and Bacula Enterprise before 18.0.0. This option should be available on or about November 14, 2023.
+#
 #
 #  Valid '<mtx_cmd>' commands are:
 #  - list      List available volumes in slot:volume format.
@@ -126,6 +129,10 @@ scriptname = 'mtx-changer-python.py'
 prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
                 + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
 
+# List of valid mtx_cmd choices:
+# ------------------------------
+valid_mtx_cmd_lst = ['slots', 'list', 'listall', 'loaded', 'load', 'unload', 'transfer']
+
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
@@ -139,7 +146,11 @@ slot = drive_device = drv_idx = drive_index = ''
 
 # List of tapeinfo codes indicating
 # that a drive needs to be cleaned
-# ---------------------------------
+# Example tapeinfo 'cleaning required' codes and messages:
+#
+# [20]:     Clean Now: The tape drive neads cleaning NOW.
+# [21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
+# ----------------------------------------------------------------------------
 cln_codes = ['20', '21']
 
 # Lists of platform specific binaries
@@ -395,6 +406,9 @@ def do_list():
     storage_elements_list = re.findall('Storage Element \d+:Full :.*\w', result.stdout)
     if include_import_export:
         importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
+    # waa - 20231008 - If the data transfer elements are listed first, a bconsole
+    #                  `status slots` output always shows slot 1 as empty, so they
+    #                  are added last to match what `mtx-changer` outputs.
     # mtx_elements_list = data_transfer_elements_list + storage_elements_list \
     #                   + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     mtx_elements_list = storage_elements_list \
@@ -480,7 +494,7 @@ def do_getvolname(cln_slot=None):
         else:
             src_vol = ''
         # Remember, for the transfer command, the SD sends the destination
-        # slot in the DriveDevice position in the command line options.
+        # slot in the drive_device position in the command line options.
         # ----------------------------------------------------------------
         vol = re.search('[SI]:' + drive_device + ':.:(.*)', all_slots)
         if vol:
@@ -672,10 +686,10 @@ def do_checkdrive():
         if len(cln_tapes) == 0:
             log('Skipping automatic cleaning', 20)
             # Return to the do_unload() function with 1 because we cannot clean a
-            # drive device without a cleaning tape, but the do_unload function that
-            # called us has already successfully unloaded the tape before it called
-            # us and it needs to exit cleanly so the SD sees a 0 return code and
-            # can continue.
+            # drive device without a cleaning tape, but the do_unload() function
+            # that called us has already successfully unloaded the tape before it
+            # called us and it needs to exit cleanly so the SD sees a 0 return code
+            # and can continue.
             # ---------------------------------------------------------------------
             return 1
 
@@ -919,7 +933,6 @@ def do_transfer():
 # Assign docopt doc string variable
 # ---------------------------------
 args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
-valid_mtx_cmd_lst = ['slots', 'list', 'listall', 'loaded', 'load', 'unload', 'transfer']
 
 # Check for and parse the configuration file first
 # ------------------------------------------------
@@ -999,8 +1012,7 @@ for var in cfg_file_true_false_lst:
 # ------------------------------
 log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10)
 log('Config File: ' + args['--config'], 10)
-log('Config Section: ' + args['--section'], 10)
-log(('Changer Name: ' + chgr_name if chgr_name else ''), 10)
+log('Config Section: [' + args['--section'] + ']', 10)
 log(('JobId: ' + jobid if jobid is not None else ''), 10)
 log(('Job Name: ' + jobname if jobname is not None else ''), 10)
 log('Changer Device: ' + chgr_device, 10)
