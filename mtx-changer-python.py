@@ -201,9 +201,9 @@ def log(text, level, hdr=None):
     if level <= int(debug_level) and text != '':
         with open(mtx_log_file, 'a+') as file:
             file.write(('\n' if '[ Starting ' in text else '') \
-            + now() + (' - ' if (jobid not in ('', '0') and jobname not in ('', '*System*')) else ' ') \
+            + now() + ' ' \
             + (chgr_name + ' ' if len(chgr_name) != 0 else '') \
-            + ('JobId: ' + jobid + ' ' if jobid not in ('', '0', 'None', '*System*') else '') \
+            + ('JobId: ' + jobid + ' ' if jobid not in ('', '0', 'None') else '') \
             + ('Job: ' + jobname + ' ' if jobname not in ('', 'None', '*System*') else (jobname + ' ' if jobname != 'None' else '')) \
             + ('- ' if hdr is None else '| ') + text.rstrip('\n') + '\n')
 
