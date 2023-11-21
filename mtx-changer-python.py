@@ -140,8 +140,8 @@ cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'include_import_export', '
                            'log_cfg_vars', 'offline', 'strip_jobname', 'vxa_packetloader']
 
 # Initialize these to satisfy the defaults
-# in the do_load() and do_unload() functions.
-# -------------------------------------------
+# in the load() and unload() functions.
+# ----------------------------------------
 slot = drive_device = drv_idx = drive_index = ''
 
 # List of tapeinfo codes indicating
@@ -196,18 +196,16 @@ def usage():
     print(prog_info_txt)
     sys.exit(1)
 
-def log(text, level):
+def log(text, level, hdr=None):
     'Given some text and a debug level, write the text to the mtx_log_file.'
     if level <= int(debug_level) and text != '':
         with open(mtx_log_file, 'a+') as file:
             file.write(('\n' if '[ Starting ' in text else '') \
-            + now() + ' - ' \
+            + now() + (' - ' if (jobid not in ('', '0') and jobname not in ('', '*System*')) else ' ') \
             + (chgr_name + ' ' if len(chgr_name) != 0 else '') \
-            + ('JobId: ' + jobid + ' ' if jobid not in ('', None, '*System*') \
-            else (jobid + ' ' if jobid is not None else '')) \
-            + ('Job: ' + jobname + ' - ' if jobname not in ('', None, '*System*') \
-            else (jobname + ' ' if jobname is not None else '')) \
-            + text.rstrip('\n') + '\n')
+            + ('JobId: ' + jobid + ' ' if jobid not in ('', '0', 'None', '*System*') else '') \
+            + ('Job: ' + jobname + ' ' if jobname not in ('', 'None', '*System*') else (jobname + ' ' if jobname != 'None' else '')) \
+            + ('- ' if hdr is None else '| ') + text.rstrip('\n') + '\n')
 
 def log_cmd_results(result):
     'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
@@ -236,7 +234,7 @@ def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
         error_txt = 'The mtx_cmd variable \'' + mtx_cmd  + '\' is invalid.\nValid mtx_cmd choices are: ' + ', '.join(valid_mtx_cmd_lst)
     return '\n' + error_txt
 
-def do_chk_cmd_result(result, cmd):
+def chk_cmd_result(result, cmd):
     'Given a result object, check the returncode, then log and exit if non zero.'
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
@@ -250,20 +248,20 @@ def get_shell_result(cmd):
     log('In function: get_shell_result()', 50)
     return subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
-def do_get_uname():
+def get_uname():
     'Get the OS uname to be use in other tests.'
-    log('In function: do_get_uname()', 50)
+    log('In function: get_uname()', 50)
     cmd = uname_bin
     log('Getting OS\'s uname so we can use it for other tests.', 40)
     log('shell command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     return result.stdout.rstrip('\n')
 
-def do_cmd_exists(cmd):
+def cmd_exists(cmd):
     'Check that a binary command exists and is executable.'
-    log('In function: do_cmd_exists()', 50)
+    log('In function: cmd_exists()', 50)
     log('Checking command: ' + cmd[1], 40)
     cmd_exists = shutil.which(cmd[1]) is not None
     if cmd_exists:
@@ -272,9 +270,9 @@ def do_cmd_exists(cmd):
         log('Command ' + cmd[1] + ': FAIL', 40)
     return cmd_exists
 
-def do_chk_bins():
+def chk_bins():
     'Check that all defined binaries exist and are executable.'
-    log('In function: do_chk_bins()', 50)
+    log('In function: chk_bins()', 50)
     for bin_var in config_dict.items():
         if '_bin' in bin_var[0]:
             # Here we make sure to only test binary
@@ -282,13 +280,13 @@ def do_chk_bins():
             # -------------------------------------
             if (bin_var[0] in linux_bin_lst and uname == 'Linux') \
                 or (bin_var[0] in fbsd_bin_lst and uname == 'FreeBSD'):
-                if do_cmd_exists(bin_var):
+                if cmd_exists(bin_var):
                     pass
                 else:
                     print(print_opt_errors('bin', bin_var))
                     usage()
             elif bin_var[0] not in linux_bin_lst and bin_var[0] not in fbsd_bin_lst:
-                if do_cmd_exists(bin_var):
+                if cmd_exists(bin_var):
                     pass
                 else:
                     print(print_opt_errors('bin', bin_var))
@@ -329,42 +327,42 @@ def get_ready_str():
         print(print_opt_errors('uname'))
         usage()
 
-def do_slots():
+def slots():
     'Print the number of slots in the library.'
-    log('In function: do_slots()', 50)
+    log('In function: slots()', 50)
     log('Determining the number of slots in the library.', 20)
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
     # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
     slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
     log('Library' + (' ' + chgr_name if len(chgr_name) != 0 else '') + ' (' + chgr_device + ')' + ' has ' + slots + ' slots', 20)
-    log('do_slots output: ' + slots, 40)
+    log('slots output: ' + slots, 40)
     return slots
 
-def do_inventory():
+def call_inventory():
     'Call mtx with the inventory command if the inventory variable is True.'
-    log('In function: do_inventory()', 50)
+    log('In function: call_inventory()', 50)
     cmd = mtx_bin + ' -f ' + chgr_device + ' inventory'
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     return
 
-def do_loaded():
+def loaded():
     'If the drive is loaded, return the slot that is in it, otherwise return 0'
-    log('In function: do_loaded()', 50)
+    log('In function: loaded()', 50)
     log('Checking if drive device ' + drive_device + ' (drive index: ' + drive_index + ') is loaded', 20)
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     # We re.search() for drive_index:Full lines and then we return 0
     # if the drive is empty, or the number of the slot that is loaded
     # For the debug log, we also print the volume name and the slot.
@@ -379,25 +377,25 @@ def do_loaded():
         log('Drive device ' + drive_device + ' (drive index: ' \
             + drive_index + ') is loaded with volume (' + vol_loaded \
             + ') from slot ' + slot_loaded, 20)
-        log('do_loaded output: ' + slot_loaded, 40)
+        log('loaded output: ' + slot_loaded, 40)
         return slot_loaded
     else:
         log('Drive device ' + drive_device + ' (drive index: ' + drive_index + ') is empty', 20)
-        log('do_loaded output: 0', 40)
+        log('loaded output: 0', 40)
         return '0'
 
-def do_list():
+def list():
     'Return the list of slots and volumes in the slot:volume format required by the SD.'
-    log('In function: do_list()', 50)
+    log('In function: list()', 50)
     # Does this library require an inventory command before the list command?
     # -----------------------------------------------------------------------
     if inventory:
-        do_inventory()
+        call_inventory()
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     # Create lists of only full Data Transfer Elements, Storage Elements, and possibly
     # the Import/Export elements. Then concatenate them into one 'mtx_elements_list' list.
     # ------------------------------------------------------------------------------------
@@ -411,6 +409,7 @@ def do_list():
     #                  are added last to match what `mtx-changer` outputs.
     # mtx_elements_list = data_transfer_elements_list + storage_elements_list \
     #                   + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
+    # ----------------------------------------------------------------------------------------------------
     mtx_elements_list = storage_elements_list \
                       + (importexport_elements_list if 'importexport_elements_list' in locals() else []) \
                       + data_transfer_elements_list
@@ -434,21 +433,21 @@ def do_list():
             tmp_txt = re.sub('Storage Element ', '', tmp_txt)
             tmp_txt = re.sub('Full :VolumeTag=', '', tmp_txt)
             mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
-    log('do_list output:\n' + mtx_elements_txt, 40)
+    log('list output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
 
-def do_listall():
+def listall():
     'Return the list of slots and volumes in the format required by the SD.'
-    log('In function: do_listall()', 50)
+    log('In function: listall()', 50)
     # Does this library require an inventory command before the status command?
-    # ------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     if inventory:
-        do_inventory()
+        call_inventory()
     cmd = mtx_bin + ' -f ' + chgr_device + ' status'
     log('mtx command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     # Create lists of all Data Transfer Elements, Storage Elements, and possibly Import/Export
     # elements - empty, or full. Then concatenate them into one 'mtx_elements_list' list.
     # ----------------------------------------------------------------------------------------
@@ -474,19 +473,19 @@ def do_listall():
     log('listall output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
 
-def do_getvolname(cln_slot=None):
+def getvolname(cln_slot=None):
     'Given a slot (or slot and device in the case of a transfer) return the volume name(s).'
     # If mtx_cmd is transfer we need to return src_vol and dst_vol
     # ------------------------------------------------------------
-    log('In function: do_getvolname()', 50)
+    log('In function: getvolname()', 50)
     # Make 'all_slots' global since it is used
     # by the chk_for_cln_tapes() function
     # ----------------------------------------
     global all_slots
-    # Prevent calling do_listall() twice;
+    # Prevent calling listall() twice;
     # Once for src_vol and once for dst_vol
     # -------------------------------------
-    all_slots = do_listall()
+    all_slots = listall()
     if mtx_cmd == 'transfer':
         vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
         if vol:
@@ -508,8 +507,8 @@ def do_getvolname(cln_slot=None):
             return vol.group(1), ''
         else:
             # Slot we are loading might be in a drive
-            # TODO: In do_load(), let's fail due to this!
-            # -------------------------------------------
+            # TODO: In load(), let's fail due to this!
+            # ----------------------------------------
             vol = re.search('D:' + drive_index + ':F:\d+:(.*)', all_slots)
             if vol:
                 return vol.group(1), ''
@@ -528,9 +527,9 @@ def do_getvolname(cln_slot=None):
             dst_vol = ''
         return src_vol, dst_vol
 
-def do_wait_for_drive(vol):
+def wait_for_drive(vol):
     'Wait a maximum of load_wait seconds for the drive to become ready.'
-    log('In function: do_wait_for_drive()', 50)
+    log('In function: wait_for_drive()', 50)
     s = 0
     log('Waiting a maximum of ' + load_wait + ' \'load_wait\' seconds for drive to become ready', 20)
     while s <= int(load_wait):
@@ -538,7 +537,7 @@ def do_wait_for_drive(vol):
         log('mt command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result, cmd)
+        chk_cmd_result(result, cmd)
         if re.search(ready, result.stdout):
             log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready', 20)
             break
@@ -574,20 +573,20 @@ def chk_for_cln_tapes():
         log('No cleaning tapes found in library', 20)
     return cln_tapes
 
-def do_clean(cln_tapes):
+def clean(cln_tapes):
     'Given the cln_tapes list of available cleaning tapes, randomly pick one and load it.'
-    log('In function: do_clean()', 50)
+    log('In function: clean()', 50)
     log('Selecting a cleaning tape', 20)
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
     log('Will load cleaning tape (' + cln_vol + ') from slot ' + cln_slot \
         + ' into drive device ' + drive_device + ' (drive index: ' + drive_index + ')', 20)
-    do_load(cln_slot, drive_device, drive_index, (cln_vol, ''), cln=True)
+    load(cln_slot, drive_device, drive_index, (cln_vol, ''), cln=True)
 
-def do_get_sg_node():
+def get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
-    log('In function: do_get_sg_node()', 50)
+    log('In function: get_sg_node()', 50)
     log('Determining the tape drive\'s scsi generic device node required by tapeinfo', 20)
     if uname == 'Linux':
         # Use `lsscsi` on Linux to always identify the
@@ -607,7 +606,7 @@ def do_get_sg_node():
         log('ls command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result, cmd)
+        chk_cmd_result(result, cmd)
         if '/dev/st' in drive_device or '/dev/nst' in drive_device:
             # OK, we caught the simple /dev/st# or /dev/nst# case
             # ---------------------------------------------------
@@ -622,7 +621,7 @@ def do_get_sg_node():
         log('lsscsi command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result, cmd)
+        chk_cmd_result(result, cmd)
         sg_search = re.search('.*' + st + ' .*(/dev/sg\d+)', result.stdout)
         if sg_search:
             sg = sg_search.group(1)
@@ -648,7 +647,7 @@ def do_get_sg_node():
         log('camcontrol command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        do_chk_cmd_result(result, cmd)
+        chk_cmd_result(result, cmd)
         sg_search = re.search('.*\((pass\d+),' + sa + '\)', result.stdout)
         if sg_search:
             sg = '/dev/' + sg_search.group(1)
@@ -658,7 +657,7 @@ def do_get_sg_node():
         log('Failed to identify an sg node device for drive device ' + drive_device, 30)
         return 1
 
-def do_tapealerts(sg, clr=False):
+def tapealerts(sg, clr=False):
     'Call the tapeinfo_bin and return any tape alerts.'
     # Call tapeinfo and parse for alerts
     # ----------------------------------
@@ -667,7 +666,7 @@ def do_tapealerts(sg, clr=False):
     log('tapeinfo command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    do_chk_cmd_result(result, cmd)
+    chk_cmd_result(result, cmd)
     # Some example tapeinfo output when 'TapeAlert' alert lines exist:
     # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
     # TapeAlert[15]: Undefined.
@@ -676,17 +675,17 @@ def do_tapealerts(sg, clr=False):
     # -------------------------------------------------------------------------------------
     return re.findall('TapeAlert\[(\d+)\]: +(.*)', result.stdout)
 
-def do_checkdrive():
-    'Given a tape drive /dev/sg# node, check tapeinfo output, call do_clean() if "clean drive" alerts exist.'
-    log('In function: do_checkdrive()', 50)
+def checkdrive():
+    'Given a tape drive /dev/sg# node, check tapeinfo output, call clean() if "clean drive" alerts exist.'
+    log('In function: checkdrive()', 50)
     # First, we need to check and see if we have any cleaning tapes in the library
     # ----------------------------------------------------------------------------
     if auto_clean:
         cln_tapes = chk_for_cln_tapes()
         if len(cln_tapes) == 0:
             log('Skipping automatic cleaning', 20)
-            # Return to the do_unload() function with 1 because we cannot clean a
-            # drive device without a cleaning tape, but the do_unload() function
+            # Return to the unload() function with 1 because we cannot clean a
+            # drive device without a cleaning tape, but the unload() function
             # that called us has already successfully unloaded the tape before it
             # called us and it needs to exit cleanly so the SD sees a 0 return code
             # and can continue.
@@ -695,29 +694,29 @@ def do_checkdrive():
 
     # Next, we need the drive device's /dev/sg# node required by tapeinfo
     # -------------------------------------------------------------------
-    sg = do_get_sg_node()
+    sg = get_sg_node()
     if sg == 1:
-        # Return to the do_unload() function with 1 because we cannot run
-        # tapeinfo without an sg node, but the do_unload() function that called
+        # Return to the unload() function with 1 because we cannot run
+        # tapeinfo without an sg node, but the unload() function that called
         # us has already successfully unloaded the tape before it called us and
         # it needs to exit cleanly so the SD sees a 0 return code and can
         # continue.
         # ---------------------------------------------------------------------
         return 1
 
-    # Call the do_tapealerts() function and
+    # Call the tapealerts() function and
     # check if we have any cleaning alerts
-    # -------------------------------------
-    log('INFO: Calling do_tapealerts() to check for any tapeinfo \'Cleaning required\' alerts', 20)
-    tapealerts = do_tapealerts(sg)
-    if len(tapealerts) > 0:
+    # ------------------------------------
+    log('INFO: Calling tapealerts() to check for any tapeinfo \'Cleaning required\' alerts', 20)
+    tapealerts_txt = tapealerts(sg)
+    if len(tapealerts_txt) > 0:
         clean_drive = False
-        log('INFO: Found ' + str(len(tapealerts)) + ' tape alert' + ('s' if len(tapealerts) > 1 else '') \
+        log('INFO: Found ' + str(len(tapealerts_txt)) + ' tape alert' + ('s' if len(tapealerts_txt) > 1 else '') \
             + ' for drive device ' + drive_device + ' (' + sg + '):', 20)
-        for alert in tapealerts:
+        for alert in tapealerts_txt:
             log('      [' + alert[0] + ']: ' + alert[1], 20)
         for cln_code in cln_codes:
-            if any(cln_code in i for i in tapealerts):
+            if any(cln_code in i for i in tapealerts_txt):
                 clean_drive = True
                 # Stop checking once we match any of the
                 # cleaning alert codes in the clean_codes list
@@ -725,13 +724,13 @@ def do_checkdrive():
                 break
         if clean_drive:
             if auto_clean:
-                log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True. Calling do_clean() function', 20)
-                do_clean(cln_tapes)
-                # Call the do_tapealerts() function one more time just to clear out the leftover alert:
+                log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True. Calling clean() function', 20)
+                clean(cln_tapes)
+                # Call the tapealerts() function one more time just to clear out the leftover alert:
                 # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
                 # -------------------------------------------------------------------------------------
-                log('INFO: Calling do_tapealerts() one more time to clear the \'TapeAlert[11]: Cleaning Media...\' alert', 20)
-                do_tapealerts(sg, clr=True)
+                log('INFO: Calling tapealerts() one more time to clear the \'TapeAlert[11]: Cleaning Media...\' alert', 20)
+                tapealerts(sg, clr=True)
             else:
                 log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False. Skipping cleaning', 20)
         else:
@@ -739,13 +738,13 @@ def do_checkdrive():
     else:
         log('No tape alerts detected', 20)
     # Now we we need to just return
-    # to the do_unload() function
+    # to the unload() function
     # -----------------------------
     return 0
 
-def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
+def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     'Load a tape from a slot to a drive.'
-    log('In function: do_load()', 50)
+    log('In function: load()', 50)
     if slt is None:
         slt = slot
     if drv_dev is None:
@@ -756,7 +755,7 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         vol = volume
     # Don't bother trying to load a tape into a drive that is full
     # ------------------------------------------------------------
-    if do_loaded() != '0':
+    if loaded() != '0':
         log('Exiting with return code 1', 20)
         return 1
     # Don't bother trying to load a tape from a slot that is empty
@@ -772,9 +771,9 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         log('mtx command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        # Don't call do_chk_cmd_result() here,
+        # Don't call chk_cmd_result() here,
         # we need to log something specific
-        # ------------------------------------
+        # ---------------------------------
         if result.returncode != 0:
             log('ERROR calling: ' + cmd, 20)
             fail_txt = 'Failed to load drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
@@ -793,18 +792,18 @@ def do_load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             log('A cleaning tape was just loaded. Will wait (' + clean_wait + ') \'clean_wait\' seconds, then unload it', 20)
             sleep(int(clean_wait))
             log('Done waiting (' + clean_wait + ') \'clean_wait\' seconds', 30)
-            do_unload(slt, drv_dev, drv_idx, vol, cln=True)
+            unload(slt, drv_dev, drv_idx, vol, cln=True)
         else:
             # Sleep load_sleep seconds after the drive signals it is ready
             # ------------------------------------------------------------
             if int(load_sleep) != 0:
                 log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle', 20)
                 sleep(int(load_sleep))
-            return do_wait_for_drive(vol)
+            return wait_for_drive(vol)
 
-def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
+def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     'Unload a tape from a drive to a slot.'
-    log('In function: do_unload()', 50)
+    log('In function: unload()', 50)
     if slt is None:
         slt = slot
     if drv_dev is None:
@@ -815,7 +814,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         vol = volume
     # Don't bother trying to unload an empty drive
     # --------------------------------------------
-    if do_loaded() == '0':
+    if loaded() == '0':
         log('Exiting with return code 0', 20)
         return 0
     # Don't bother trying to unload a tape into a full slot
@@ -832,7 +831,7 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
             log_cmd_results(result)
-            do_chk_cmd_result(result, cmd)
+            chk_cmd_result(result, cmd)
             if int(offline_sleep) != 0:
                 log('Sleeping for \'offline_sleep\' time of ' + offline_sleep 
                     + ' seconds to let the drive settle before unloading it', 20)
@@ -844,9 +843,9 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         log('mtx command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
-        # Don't call do_chk_cmd_result() here,
+        # Don't call chk_cmd_result() here,
         # we need to log something specific
-        # ------------------------------------
+        # ---------------------------------
         if result.returncode != 0:
             log('ERROR calling: ' + cmd, 20)
             fail_txt = 'Failed to unload drive device ' + drv_dev + ' (drive index: ' + drv_idx + ') ' \
@@ -864,36 +863,35 @@ def do_unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # After successful unload, check to see if the tape drive should be cleaned.
             # We need to intercept the process here, before we exit from the unload,
             # otherwise the SD will move on and try to load the next tape.
-            # Additionally when unloading a cleaning tape, we call do_unload()
+            # Additionally when unloading a cleaning tape, we call unload()
             # with 'cln = True' so we do not end up in any loops - especially if the
             # drive still reports it needs cleaning after it has been cleaned.
             # --------------------------------------------------------------------------
             if cln:
                 log('A cleaning tape (' + vol[0] + ') was just unloaded, skipping tapeinfo tests', 20)
             elif chk_drive:
-                log('The chk_drive variable is True, calling do_checkdrive() function', 20)
-                checkdrive = do_checkdrive()
-                if checkdrive == 1:
+                log('The chk_drive variable is True, calling checkdrive() function', 20)
+                if checkdrive() == 1:
                     # I think there is nothing to do here. We could not get an sg
                     # node, or there are no cleaning tapes in the library, so we
                     # cannot run tapeinfo but the drive has been successfully
                     # unloaded, so we just need to log and exit cleanly here.
                     # -----------------------------------------------------------
-                    log('Exiting do_unload() volume ' + ('(' + vol[0] + ')' if vol != '' else '') \
+                    log('Exiting unload() volume ' + ('(' + vol[0] + ')' if vol != '' else '') \
                         + ' with return code ' + str(result.returncode), 20)
                     return 0
             else:
                 log('The chk_drive variable is False, skipping tapeinfo tests', 20)
-            log('Exiting do_unload() volume ' + ('(' + vol[0] + ') ' if vol != '' else '') \
+            log('Exiting unload() volume ' + ('(' + vol[0] + ') ' if vol != '' else '') \
                 + 'with return code ' + str(result.returncode), 50)
     return result.returncode
 
-def do_transfer():
+def transfer():
     'Transfer a tape from one slot to another.'
     # The SD will send the destination slot in the
     # 'drive_device' position on the command line
     # --------------------------------------------
-    log('In function: do_transfer()', 50)
+    log('In function: transfer()', 50)
     cmd = mtx_bin + ' -f ' + chgr_device + ' transfer ' + slot + ' ' + drive_device
     log('Transferring volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot '
         + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' ), 20)
@@ -907,7 +905,7 @@ def do_transfer():
        log('mtx command: ' + cmd, 30)
        result = get_shell_result(cmd)
        log_cmd_results(result)
-       # Don't call do_chk_cmd_result() here,
+       # Don't call chk_cmd_result() here,
        # we need to log something specific
        # ------------------------------------
        if result.returncode != 0:
@@ -1010,30 +1008,30 @@ for var in cfg_file_true_false_lst:
 # level of 10, log command line
 # variables to log file
 # ------------------------------
-log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10)
-log('Config File: ' + args['--config'], 10)
-log('Config Section: [' + args['--section'] + ']', 10)
-log(('JobId: ' + jobid if jobid is not None else ''), 10)
-log(('Job Name: ' + jobname if jobname is not None else ''), 10)
-log('Changer Device: ' + chgr_device, 10)
-log('Drive Device: ' + drive_device, 10)
-log('Command: ' + mtx_cmd, 10)
-log('Drive Index: ' + drive_index, 10)
-log('Slot: ' + slot, 10)
+log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10, hdr=True)
+log('Config File: ' + args['--config'], 10, hdr=True)
+log('Config Section: [' + args['--section'] + ']', 10, hdr=True)
+log(('JobId: ' + jobid if jobid is not None else ''), 10, hdr=True)
+log(('Job Name: ' + jobname if jobname is not None else ''), 10, hdr=True)
+log('Changer Device: ' + chgr_device, 10, hdr=True)
+log('Drive Device: ' + drive_device, 10, hdr=True)
+log('Command: ' + mtx_cmd, 10, hdr=True)
+log('Drive Index: ' + drive_index, 10, hdr=True)
+log('Slot: ' + slot, 10, hdr=True)
 
 # Log all configuration file
 # variables and their values?
 # ---------------------------
 if log_cfg_vars:
-    log('-'*22, 10)
-    log('Config file variables:', 10)
+    log('-'*22, 10, hdr=True)
+    log('Config file variables:', 10, hdr=True)
     for k, v in config_dict.items():
-        log(k + ': ' + str(v), 10)
-log('-'*22, 10)
+        log(k + ': ' + str(v), 10, hdr=True)
+log('-'*22, 10, hdr=True)
 
 # Get the OS's uname to be used in other tests
 # --------------------------------------------
-uname = do_get_uname()
+uname = get_uname()
 
 # Check that the binaries exist and that they are executable.
 # NOTE: A small chicken and egg issue exists here because we call
@@ -1041,11 +1039,11 @@ uname = do_get_uname()
 # executable by us (ie: bacula user). We can't check the binaries
 # first because we filter out testing binaries based on some
 # platform-specific binaries that don't exist on other platforms
-# using the 'uname' variable assigned by the do_get_uname()
+# using the 'uname' variable assigned by the get_uname()
 # function. Should be safe, as all systems have uname in the
 # $PATH.
 # ---------------------------------------------------------------
-do_chk_bins()
+chk_bins()
 
 # Check the OS to assign the 'ready' variable
 # to know when a drive is loaded and ready.
@@ -1053,29 +1051,29 @@ do_chk_bins()
 ready = get_ready_str()
 
 # Check to see if the operation can/should log volume
-# names. If yes, call the do_getvolname() function
+# names. If yes, call the getvolname() function
 # ---------------------------------------------------
 if mtx_cmd in ('load', 'loaded', 'unload', 'transfer'):
-    volume = do_getvolname()
+    volume = getvolname()
 
 # Call the appropriate function based on the mtx_cmd
 # --------------------------------------------------
 if mtx_cmd == 'list':
-    print(do_list())
+    print(list())
 elif mtx_cmd == 'listall':
-   print(do_listall())
+   print(listall())
 elif mtx_cmd == 'slots':
-    print(do_slots())
+    print(slots())
 elif mtx_cmd == 'loaded':
-    print(do_loaded())
+    print(loaded())
 elif mtx_cmd == 'load':
-    result = do_load()
+    result = load()
     sys.exit(result)
 elif mtx_cmd == 'unload':
-    result = do_unload()
+    result = unload()
     sys.exit(result)
 elif mtx_cmd == 'transfer':
-   do_transfer()
+   transfer()
 else:
     print(print_opt_errors('command'))
     usage()
