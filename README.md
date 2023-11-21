@@ -22,14 +22,20 @@ Autochanger {
 
 Where the variables passed to the mtx-changer-python.py script by the Bacula SD are:
 ```
-%c    - Library's changer device node. eg: /dev/tape/by-id/scsi-XXXXXXXXXX, or /dev/sgX
-%o    - The command. Valid options: slots, list, listall, loaded, load, unload, transfer.
-%S    - The one-based library slot to load/unload, or the source slot for the transfer command.
-%a    - The drive's "ArchiveDevice". eg: /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
-        Or, the destination slot for the transfer command.
-%d    - The zero-based drive index.
--i %i - Optional jobid. If present, it will be written to the log file after the timestamp.
--j %j - Optional job name. If present, it will be written to the log file after the job name.
+%c           - Library's changer device node. eg: /dev/tape/by-id/scsi-XXXXXXXXXX, or /dev/sgX
+%o           - The command. Valid options: slots, list, listall, loaded, load, unload, transfer.
+%S           - The one-based library slot to load/unload, or the source slot for the transfer command.
+%a           - The drive's "ArchiveDevice". eg: /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
+               Or, the destination slot for the transfer command.
+%d           - The zero-based drive index.
+```
+
+Optional command line parameters:
+```
+-c <config>  - Configuration file. [default: /opt/bacula/scripts/mtx-changer-python.conf]
+-s <section> - Section in configuration file. [default: DEFAULT]
+-i %i        - Optional jobid. If present, it will be written to the log file after the timestamp.
+-j %j        - Optional job name. If present, it will be written to the log file after the jobid.
 ```
 
 Instructions on which parameters are optional, which are required, and the order they must appear in are all described at the top of the mtx-changer-python.py script. Please read that first.
