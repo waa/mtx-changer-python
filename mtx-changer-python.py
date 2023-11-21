@@ -121,8 +121,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.22'
-reldate = 'November 20, 2023'
+version = '1.23'
+reldate = 'November 21, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -728,7 +728,7 @@ def checkdrive():
                 clean(cln_tapes)
                 # Call the tapealerts() function one more time just to clear out the leftover alert:
                 # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
-                # -------------------------------------------------------------------------------------
+                # ----------------------------------------------------------------------------------
                 log('INFO: Calling tapealerts() one more time to clear the \'TapeAlert[11]: Cleaning Media...\' alert', 20)
                 tapealerts(sg, clr=True)
             else:
@@ -934,23 +934,22 @@ args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + r
 
 # Check for and parse the configuration file first
 # ------------------------------------------------
-if args['--config'] is not None:
-    config_file = args['--config']
-    config_section = args['--section']
-    if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
-        print(print_opt_errors('config'))
-        usage()
-    else:
-        try:
-            config = ConfigParser(inline_comment_prefixes=('# ', ';'), interpolation=BasicInterpolation())
-            config.read(config_file)
-            # Create 'config_dict' dictionary from config file
-            # ------------------------------------------------
-            config_dict = dict(config.items(config_section))
-        except Exception as err:
-            print('  - An exception has occurred while reading configuration file: ' + str(err))
-            print(print_opt_errors('section'))
-            sys.exit(1)
+config_file = args['--config']
+config_section = args['--section']
+if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
+    print(print_opt_errors('config'))
+    usage()
+else:
+    try:
+        config = ConfigParser(inline_comment_prefixes=('# ', ';'), interpolation=BasicInterpolation())
+        config.read(config_file)
+        # Create 'config_dict' dictionary from config file
+        # ------------------------------------------------
+        config_dict = dict(config.items(config_section))
+    except Exception as err:
+        print('  - An exception has occurred while reading configuration file: ' + str(err))
+        print(print_opt_errors('section'))
+        sys.exit(1)
 
 # For each key in the config_dict dictionary, make its key name
 # into a global variable and assign it the key's dictionary value.
