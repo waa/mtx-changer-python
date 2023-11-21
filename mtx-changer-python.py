@@ -625,7 +625,7 @@ def get_sg_node():
         sg_search = re.search('.*' + st + ' .*(/dev/sg\d+)', result.stdout)
         if sg_search:
             sg = sg_search.group(1)
-            log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 30)
+            log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 20)
             return sg
     elif uname == 'FreeBSD':
         sa = re.sub('/dev/(sa\d+)', '\\1', drive_device)
@@ -651,10 +651,10 @@ def get_sg_node():
         sg_search = re.search('.*\((pass\d+),' + sa + '\)', result.stdout)
         if sg_search:
             sg = '/dev/' + sg_search.group(1)
-            log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 30)
+            log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 20)
             return sg
     else:
-        log('Failed to identify an sg node device for drive device ' + drive_device, 30)
+        log('Failed to identify an sg node device for drive device ' + drive_device, 20)
         return 1
 
 def tapealerts(sg, clr=False):
@@ -1011,8 +1011,8 @@ for var in cfg_file_true_false_lst:
 log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10, hdr=True)
 log('Config File: ' + args['--config'], 10, hdr=True)
 log('Config Section: [' + args['--section'] + ']', 10, hdr=True)
-log(('JobId: ' + jobid if jobid is not None else ''), 10, hdr=True)
-log(('Job Name: ' + jobname if jobname is not None else ''), 10, hdr=True)
+log(('JobId: ' + jobid if jobid not in ('0', 'None') else ''), 10, hdr=True)
+log(('Job Name: ' + jobname if jobname != 'None' else ''), 10, hdr=True)
 log('Changer Device: ' + chgr_device, 10, hdr=True)
 log('Drive Device: ' + drive_device, 10, hdr=True)
 log('Command: ' + mtx_cmd, 10, hdr=True)
