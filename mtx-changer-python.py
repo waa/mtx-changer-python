@@ -121,8 +121,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.23'
-reldate = 'November 21, 2023'
+version = '1.24'
+reldate = 'November 28, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -401,7 +401,7 @@ def list():
     # ------------------------------------------------------------------------------------
     mtx_elements_txt = ''
     data_transfer_elements_list = re.findall('Data Transfer Element \d+:Full.*\w', result.stdout)
-    storage_elements_list = re.findall('Storage Element \d+:Full :.*\w', result.stdout)
+    storage_elements_list = re.findall('Storage Element \d+:Full.*', result.stdout)
     if include_import_export:
         importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
     # waa - 20231008 - If the data transfer elements are listed first, a bconsole
@@ -418,8 +418,7 @@ def list():
     # format it the way the SD expects to see it.
     # -------------------------------------------
     for element in mtx_elements_list:
-        tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\)', '\\1', element)
-        tmp_txt = re.sub('VolumeTag = ', '', tmp_txt)
+        tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\):VolumeTag = (\w)', '\\1:\\2', element)
         # waa - 20230518 - I need to find out what the actual packetloader text is so I can verify/test this.
         # Original grep/sed used in mtx-changer bash/perl script for VXA libraries:
         # grep " *Storage Element [1-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
@@ -430,8 +429,8 @@ def list():
         else:
             if include_import_export:
                 tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', '\\1:\\2', tmp_txt)
-            tmp_txt = re.sub('Storage Element ', '', tmp_txt)
-            tmp_txt = re.sub('Full :VolumeTag=', '', tmp_txt)
+            tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(\w)', '\\1:\\2', tmp_txt)
+            tmp_txt = re.sub('Storage Element (\d+):Full', '\\1:NO_LABEL', tmp_txt)
             mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
     log('list output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
@@ -466,6 +465,7 @@ def listall():
         tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
         tmp_txt = re.sub('Storage Element (\d+):Empty(:VolumeTag){0,1}', 'S:\\1:E', tmp_txt)
         tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
+        tmp_txt = re.sub('Storage Element (\d+):Full.*', 'S:\\1:F:NO_LABEL', tmp_txt)
         if include_import_export:
             tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty(:VolumeTag){0,1}', 'I:\\1:E', tmp_txt)
             tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
@@ -539,9 +539,9 @@ def wait_for_drive(vol):
         log_cmd_results(result)
         chk_cmd_result(result, cmd)
         if re.search(ready, result.stdout):
-            log('Device ' + drive_device + ' (drive index: ' + drive_index + ') reports ready', 20)
+            log('Device ' + drive_device + ' (drive index: ' + drive_index + ') ready', 20)
             break
-        log('Device ' + drive_device + ' (drive index: ' + drive_index + ') - not ready, sleeping for one second and retrying...', 20)
+        log('Device ' + drive_device + ' (drive index: ' + drive_index + ') not ready, sleeping for one second and retrying...', 20)
         sleep(1)
         s += 1
     if s == int(load_wait) + 1:
@@ -659,6 +659,17 @@ def get_sg_node():
 
 def tapealerts(sg, clr=False):
     'Call the tapeinfo_bin and return any tape alerts.'
+    log('In function: tapealerts()', 50)
+    # TODO - waa - 20231127 - I have found that sometimes tapeinfo does not show any
+    #                         TapeAlert messages, but `sg_logs` from sg3_utils package
+    #                         always reports if the drive needs cleaning with the
+    #                         following text:
+    # ----------------------------------------------------
+    # sg_logs --page=0xc /dev/sg7 | grep "Cleaning action"
+    # Cleaning action required
+    # sg_logs --page=0xc /dev/sg5 | grep "Cleaning action"
+    # Cleaning action not required (or completed)
+    # ----------------------------------------------------
     # Call tapeinfo and parse for alerts
     # ----------------------------------
     cmd = tapeinfo_bin + ' -f ' + sg
@@ -1007,7 +1018,7 @@ for var in cfg_file_true_false_lst:
 # level of 10, log command line
 # variables to log file
 # ------------------------------
-log('-'*10 + '[ Starting ' + sys.argv[0] + ' ]' + '-'*10 , 10, hdr=True)
+log('-'*10 + '[ Starting ' + sys.argv[0] + ' v' + version + ' ]' + '-'*10 , 10, hdr=True)
 log('Config File: ' + args['--config'], 10, hdr=True)
 log('Config Section: [' + args['--section'] + ']', 10, hdr=True)
 log(('JobId: ' + jobid if jobid not in ('0', 'None') else ''), 10, hdr=True)
