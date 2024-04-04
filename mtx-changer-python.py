@@ -60,11 +60,11 @@
 #              - For Drives:         D:drive index:F:slot:volume - D:0:F:5:G03005TA or for an empty drive:               D:3:E
 #              - For Slots:          S:slot:F:volume             - S:2:F:G03002TA   or for an empty slot:                S:1:E
 #              - For Import/Export:  I:slot:F:volume             - I:41:F:G03029TA  or for am empty import/export slot:  I:42:E
-#  - loaded    Show which slot is loaded in a drive, else 0 if the drive is empty.
-#  - unload    Unload a drive to a slot.
-#  - load      Load a a slot to a drive.
 #  - slots     Show the number of slots in the autochanger.
-#  - transfer  Transfer a volume from one slot to another. In this case, the archive device is the destination slot.
+#  - load      Load a a slot to a drive.
+#  - unload    Unload a drive to a slot.
+#  - loaded    Show which slot is loaded in a drive, else 0 if the drive is empty.
+#  - transfer  Transfer a volume from one slot to another. In this case, the <drive_device> is the destination slot.
 #
 #  Slots are numbered from 1.
 #  Drives are numbered from 0.
@@ -169,8 +169,8 @@ Usage:
 Options:
 -c, --config <config>     Configuration file. [default: /opt/bacula/scripts/mtx-changer-python.conf]
 -s, --section <section>   Section in configuration file. [default: DEFAULT]
--i --jobid <jobid>        The JobId. [default: None]
--j --jobname <jobname>    The Job name. [default: None]
+-i, --jobid <jobid>       The JobId. [default: None]
+-j, --jobname <jobname>   The Job name. [default: None]
 
 chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
 mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
@@ -207,19 +207,6 @@ def log(text, level, hdr=None):
             + ('Job: ' + jobname + ' ' if jobname not in ('', 'None', '*System*') else (jobname + ' ' if jobname != 'None' else '')) \
             + ('- ' if hdr is None else '| ') + text.rstrip('\n') + '\n')
 
-def log_cmd_results(result):
-    'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
-    log('In function log_cmd_results()', 50)
-    stdout = result.stdout.rstrip('\n')
-    stderr = result.stderr.rstrip('\n')
-    if stdout == '':
-        stdout = 'N/A'
-    if stderr == '':
-        stderr = 'N/A'
-    log('returncode: ' + str(result.returncode), 40)
-    log('stdout: ' + ('\n[begin stdout]\n' + stdout + '\n[end stdout]' if '\n' in stdout else stdout), 40)
-    log('stderr: ' + ('\n[begin stderr]\n' + stderr + '\n[end stderr]' if '\n' in stderr else stderr), 40)
-
 def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
     'Print the incorrect variable and the reason it is incorrect.'
     if opt == 'config':
@@ -233,6 +220,19 @@ def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
     elif opt == 'mtx_cmd':
         error_txt = 'The mtx_cmd variable \'' + mtx_cmd  + '\' is invalid.\nValid mtx_cmd choices are: ' + ', '.join(valid_mtx_cmd_lst)
     return '\n' + error_txt
+
+def log_cmd_results(result):
+    'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
+    log('In function log_cmd_results()', 50)
+    stdout = result.stdout.rstrip('\n')
+    stderr = result.stderr.rstrip('\n')
+    if stdout == '':
+        stdout = 'N/A'
+    if stderr == '':
+        stderr = 'N/A'
+    log('returncode: ' + str(result.returncode), 40)
+    log('stdout: ' + ('\n[begin stdout]\n' + stdout + '\n[end stdout]' if '\n' in stdout else stdout), 40)
+    log('stderr: ' + ('\n[begin stderr]\n' + stderr + '\n[end stderr]' if '\n' in stderr else stderr), 40)
 
 def chk_cmd_result(result, cmd):
     'Given a result object, check the returncode, then log and exit if non zero.'
@@ -430,7 +430,7 @@ def list():
             if include_import_export:
                 tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', '\\1:\\2', tmp_txt)
             tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(\w)', '\\1:\\2', tmp_txt)
-            tmp_txt = re.sub('Storage Element (\d+):Full', '\\1:NO_LABEL', tmp_txt)
+            tmp_txt = re.sub('Storage Element (\d+):Full', 'S:\\1:F:NO_BARCODE', tmp_txt)
             mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
     log('list output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
@@ -465,7 +465,7 @@ def listall():
         tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
         tmp_txt = re.sub('Storage Element (\d+):Empty(:VolumeTag){0,1}', 'S:\\1:E', tmp_txt)
         tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Full.*', 'S:\\1:F:NO_LABEL', tmp_txt)
+        tmp_txt = re.sub('Storage Element (\d+):Full.*', 'S:\\1:F:NO_BARCODE', tmp_txt)
         if include_import_export:
             tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty(:VolumeTag){0,1}', 'I:\\1:E', tmp_txt)
             tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
@@ -549,12 +549,12 @@ def wait_for_drive(vol):
         log('Timeout waiting for drive device ' + drive_device + ' (drive index: ' + drive_index + ')'
             + ' to signal that it is loaded', 20)
         log('Perhaps the Device\'s "DriveIndex" is incorrect', 20)
-        log('Exiting with return code 1', 20)
+        log('Exiting with return code 1', 30)
         return 1
     else:
         log('Successfully loaded volume' + (' (' + vol[0] + ')' if volume != '' else '') + ' from slot ' + slot \
             + ' to drive device ' + drive_device + ' (drive index: ' + drive_index + ')', 20)
-        log('Exiting with return code 0', 20)
+        log('Exiting with return code 0', 30)
         return 0
 
 def chk_for_cln_tapes():
@@ -601,6 +601,9 @@ def get_sg_node():
         # drive_device = '/dev/nst0'
         # drive_device = '/dev/tape/by-id/scsi-350223344ab000900-nst'
         # drive_device = '/dev/tape/by-path/STK-T10000B-XYZZY_B1-nst'
+        # -----------------------------------------------------------
+        # TODO: waa - 20240302 - These lines before the if statement
+        # are not necessary. Probably are here for logging mainly
         # -----------------------------------------------------------
         cmd = ls_bin + ' -l ' + drive_device
         log('ls command: ' + cmd, 30)
@@ -673,7 +676,8 @@ def tapealerts(sg, clr=False):
     # Call tapeinfo and parse for alerts
     # ----------------------------------
     cmd = tapeinfo_bin + ' -f ' + sg
-    log(('Clearing tapeinfo \'TapeAlert[11]: Cleaning Media...\' on' if clr else 'Checking') + ' drive (sg node: ' + sg + ') with tapeinfo utility', 20)
+    log(('Clearing tapeinfo \'TapeAlert[11]: Cleaning Media...\' on' if clr else 'Checking') \
+         + ' drive (sg node: ' + sg + ') with tapeinfo utility', 20)
     log('tapeinfo command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
@@ -767,7 +771,7 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to load a tape into a drive that is full
     # ------------------------------------------------------------
     if loaded() != '0':
-        log('Exiting with return code 1', 20)
+        log('Exiting with return code 1', 30)
         return 1
     # Don't bother trying to load a tape from a slot that is empty
     # ------------------------------------------------------------
@@ -791,7 +795,7 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                      + ('with volume (' + vol[0] + ') ' if vol[0] != '' else '') + 'from slot ' + slt
             log(fail_txt, 20)
             log('Err: ' + result.stderr, 20)
-            log('Exiting with return code ' + str(result.returncode), 20)
+            log('Exiting with return code ' + str(result.returncode), 30)
             # The SD will print this stdout after 'Result=' in the job log
             # ------------------------------------------------------------
             print(fail_txt + ' Err: ' + result.stderr)
@@ -810,6 +814,11 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             if int(load_sleep) != 0:
                 log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle', 20)
                 sleep(int(load_sleep))
+            # TODO: 20240310 - Need to find out (t10.org??) when we should check a drive with tapeinfo
+            #                  Should it be checked right after load or right after unload???
+            # elif chk_drive:
+            #     log('The chk_drive variable is True, calling checkdrive() function', 20)
+            #     if checkdrive() == 1:
             return wait_for_drive(vol)
 
 def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
@@ -826,13 +835,13 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to unload an empty drive
     # --------------------------------------------
     if loaded() == '0':
-        log('Exiting with return code 0', 20)
+        log('Exiting with return code 0', 30)
         return 0
     # Don't bother trying to unload a tape into a full slot
     # -----------------------------------------------------
     elif vol[1] != '':
         log('Slot ' + slt + ' is full with volume (' + vol[1] + ')', 20)
-        log('Exiting with return code 1', 20)
+        log('Exiting with return code 1', 30)
         return 1
     else:
         if offline:
@@ -863,7 +872,7 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                      + ('with volume (' + vol[0] + ') ' if vol[0] != '' else '') + 'to slot ' + slt
             log(fail_txt, 20)
             log('Err: ' + result.stderr, 20)
-            log('Exiting with return code ' + str(result.returncode), 20)
+            log('Exiting with return code ' + str(result.returncode), 30)
             # The SD will print this stdout after 'Result=' in the Bacula job log
             # -------------------------------------------------------------------
             print(fail_txt + ' Err: ' + result.stderr)
@@ -889,12 +898,12 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                     # unloaded, so we just need to log and exit cleanly here.
                     # -----------------------------------------------------------
                     log('Exiting unload() volume ' + ('(' + vol[0] + ')' if vol != '' else '') \
-                        + ' with return code ' + str(result.returncode), 20)
+                        + ' with return code ' + str(result.returncode), 30)
                     return 0
             else:
                 log('The chk_drive variable is False, skipping tapeinfo tests', 20)
             log('Exiting unload() volume ' + ('(' + vol[0] + ') ' if vol != '' else '') \
-                + 'with return code ' + str(result.returncode), 50)
+                + 'with return code ' + str(result.returncode), 30)
     return result.returncode
 
 def transfer():
@@ -909,7 +918,7 @@ def transfer():
     if volume[0] == '' or volume[1] != '':
        fail_txt = 'The source slot is empty, or the destination slot is full, will not even attempt the transfer'
        log(fail_txt, 20)
-       log('Exiting with return code 1', 20)
+       log('Exiting with return code 1', 30)
        print('Err: ' + fail_txt)
        sys.exit(1)
     else:
@@ -918,14 +927,14 @@ def transfer():
        log_cmd_results(result)
        # Don't call chk_cmd_result() here,
        # we need to log something specific
-       # ------------------------------------
+       # ---------------------------------
        if result.returncode != 0:
            log('ERROR calling: ' + cmd, 20)
            fail_txt = 'Failed to transfer volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') + 'from slot ' \
                     + slot + ' to slot ' + drive_device + (' containing volume (' + volume[1] + ')' if volume[1] != '' else '' )
            log(fail_txt, 20)
            log('Err: ' + result.stderr, 20)
-           log('Exiting with return code ' + str(result.returncode), 20)
+           log('Exiting with return code ' + str(result.returncode), 30)
            # The SD will print this stdout after 'Result=' in the job log
            # ------------------------------------------------------------
            print(fail_txt + ' Err: ' + result.stderr)
@@ -933,7 +942,7 @@ def transfer():
        else:
            log('Successfully transferred volume ' + ('(' + volume[0] + ') ' if volume[0] != '' else '(EMPTY) ') \
                + 'from slot ' + slot + ' to slot ' + drive_device, 20)
-           log('Exiting with return code ' + str(result.returncode), 20)
+           log('Exiting with return code ' + str(result.returncode), 30)
            return 0
 
 # ================
@@ -982,7 +991,6 @@ for k, v in config_dict.items():
             config_dict[k] = False
         else:
             pass
-
     # Set the global variable
     # -----------------------
     myvars[k] = config_dict[k]
