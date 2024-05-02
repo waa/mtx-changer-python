@@ -339,7 +339,7 @@ def slots():
     # Storage Changer /dev/tape/by-id/scsi-SSTK_L80_XYZZY_B:4 Drives, 44 Slots ( 4 Import/Export )
     # --------------------------------------------------------------------------------------------
     slots_line = re.search('Storage Changer.*', result.stdout)
-    slots = re.sub('^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
+    slots = re.sub(r'^Storage Changer.* Drives, (\d+) Slots.*', '\\1', slots_line.group(0))
     log('Library' + (' ' + chgr_name if len(chgr_name) != 0 else '') + ' (' + chgr_device + ')' + ' has ' + slots + ' slots', 20)
     log('slots output: ' + slots, 40)
     return slots
@@ -371,7 +371,7 @@ def loaded():
     # ---------------------------------------------------------------
     drive_loaded_line = re.search('Data Transfer Element ' + drive_index + ':Full.*', result.stdout)
     if drive_loaded_line is not None:
-        slot_and_vol_loaded = (re.sub('^Data Transfer Element.*Element (\d+) Loaded.*= (\w+)', '\\1 \\2', drive_loaded_line.group(0))).split()
+        slot_and_vol_loaded = (re.sub(r'^Data Transfer Element.*Element (\d+) Loaded.*= (\w+)', '\\1 \\2', drive_loaded_line.group(0))).split()
         slot_loaded = slot_and_vol_loaded[0]
         vol_loaded = slot_and_vol_loaded[1]
         log('Drive device ' + drive_device + ' (drive index: ' \
@@ -400,10 +400,10 @@ def list():
     # the Import/Export elements. Then concatenate them into one 'mtx_elements_list' list.
     # ------------------------------------------------------------------------------------
     mtx_elements_txt = ''
-    data_transfer_elements_list = re.findall('Data Transfer Element \d+:Full.*\w', result.stdout)
-    storage_elements_list = re.findall('Storage Element \d+:Full.*', result.stdout)
+    data_transfer_elements_list = re.findall(r'Data Transfer Element \d+:Full.*\w', result.stdout)
+    storage_elements_list = re.findall(r'Storage Element \d+:Full.*', result.stdout)
     if include_import_export:
-        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
+        importexport_elements_list = re.findall(r'Storage Element \d+ IMPORT.EXPORT:Full.*\w', result.stdout)
     # waa - 20231008 - If the data transfer elements are listed first, a bconsole
     #                  `status slots` output always shows slot 1 as empty, so they
     #                  are added last to match what `mtx-changer` outputs.
@@ -418,7 +418,7 @@ def list():
     # format it the way the SD expects to see it.
     # -------------------------------------------
     for element in mtx_elements_list:
-        tmp_txt = re.sub('Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\):VolumeTag = (\w)', '\\1:\\2', element)
+        tmp_txt = re.sub(r'Data Transfer Element \d+:Full \(Storage Element (\d+) Loaded\):VolumeTag = (\w)', '\\1:\\2', element)
         # waa - 20230518 - I need to find out what the actual packetloader text is so I can verify/test this.
         # Original grep/sed used in mtx-changer bash/perl script for VXA libraries:
         # grep " *Storage Element [1-9]*:.*Full" | sed "s/ *Storage Element //" | sed "s/Full :VolumeTag=//"
@@ -428,9 +428,9 @@ def list():
             tmp_txt = re.sub('Full :VolumeTag=', '', tmp_txt)
         else:
             if include_import_export:
-                tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', '\\1:\\2', tmp_txt)
-            tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(\w)', '\\1:\\2', tmp_txt)
-            tmp_txt = re.sub('Storage Element (\d+):Full', 'S:\\1:F:NO_BARCODE', tmp_txt)
+                tmp_txt = re.sub(r'Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', '\\1:\\2', tmp_txt)
+            tmp_txt = re.sub(r'Storage Element (\d+):Full :VolumeTag=(\w)', '\\1:\\2', tmp_txt)
+            tmp_txt = re.sub(r'Storage Element (\d+):Full', 'S:\\1:F:NO_BARCODE', tmp_txt)
             mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
     log('list output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
@@ -451,24 +451,24 @@ def listall():
     # elements - empty, or full. Then concatenate them into one 'mtx_elements_list' list.
     # ----------------------------------------------------------------------------------------
     mtx_elements_txt = ''
-    data_transfer_elements_list = re.findall('Data Transfer Element \d+:.*\w', result.stdout)
-    storage_elements_list = re.findall('Storage Element \d+:.*\w', result.stdout)
+    data_transfer_elements_list = re.findall(r'Data Transfer Element \d+:.*\w', result.stdout)
+    storage_elements_list = re.findall(r'Storage Element \d+:.*\w', result.stdout)
     if include_import_export:
-        importexport_elements_list = re.findall('Storage Element \d+ IMPORT.EXPORT.*\w', result.stdout)
+        importexport_elements_list = re.findall(r'Storage Element \d+ IMPORT.EXPORT.*\w', result.stdout)
     mtx_elements_list = data_transfer_elements_list + storage_elements_list \
                       + (importexport_elements_list if 'importexport_elements_list' in locals() else [])
     # Parse the results of the status output and
     # format it the way the SD expects to see it.
     # -------------------------------------------
     for element in mtx_elements_list:
-        tmp_txt = re.sub('Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
-        tmp_txt = re.sub('Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Empty(:VolumeTag){0,1}', 'S:\\1:E', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
-        tmp_txt = re.sub('Storage Element (\d+):Full.*', 'S:\\1:F:NO_BARCODE', tmp_txt)
+        tmp_txt = re.sub(r'Data Transfer Element (\d+):Empty', 'D:\\1:E', element)
+        tmp_txt = re.sub(r'Data Transfer Element (\d+):Full \(Storage Element (\d+) Loaded\):VolumeTag = (.*)', 'D:\\1:F:\\2:\\3', tmp_txt)
+        tmp_txt = re.sub(r'Storage Element (\d+):Empty(:VolumeTag){0,1}', 'S:\\1:E', tmp_txt)
+        tmp_txt = re.sub(r'Storage Element (\d+):Full :VolumeTag=(.*)', 'S:\\1:F:\\2', tmp_txt)
+        tmp_txt = re.sub(r'Storage Element (\d+):Full.*', 'S:\\1:F:NO_BARCODE', tmp_txt)
         if include_import_export:
-            tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Empty(:VolumeTag){0,1}', 'I:\\1:E', tmp_txt)
-            tmp_txt = re.sub('Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
+            tmp_txt = re.sub(r'Storage Element (\d+) IMPORT.EXPORT:Empty(:VolumeTag){0,1}', 'I:\\1:E', tmp_txt)
+            tmp_txt = re.sub(r'Storage Element (\d+) IMPORT.EXPORT:Full :VolumeTag=(.*)', 'I:\\1:F:\\2', tmp_txt)
         mtx_elements_txt += tmp_txt + ('' if element == mtx_elements_list[-1] else '\n')
     log('listall output:\n' + mtx_elements_txt, 40)
     return mtx_elements_txt
@@ -509,13 +509,13 @@ def getvolname(cln_slot=None):
             # Slot we are loading might be in a drive
             # TODO: In load(), let's fail due to this!
             # ----------------------------------------
-            vol = re.search('D:' + drive_index + ':F:\d+:(.*)', all_slots)
+            vol = re.search('D:' + drive_index + ':F:\\d+:(.*)', all_slots)
             if vol:
                 return vol.group(1), ''
             else:
                 return '', ''
     elif mtx_cmd == 'unload':
-        vol = re.search('D:' + drive_index + ':F:\d+:(.*)', all_slots)
+        vol = re.search('D:' + drive_index + ':F:\\d+:(.*)', all_slots)
         if vol:
             src_vol = vol.group(1)
         else:
@@ -564,9 +564,9 @@ def chk_for_cln_tapes():
     # idea where in the cleaning process it is, so we
     # need to ignore cleaning tapes in drives.
     # ------------------------------------------------
-    cln_tapes = re.findall('S:(\d+):F:(' + cln_str + '.*)', all_slots)
+    cln_tapes = re.findall(r'S:(\d+):F:(' + cln_str + '.*)', all_slots)
     if include_import_export:
-        cln_tapes += re.findall('I:(\d+):F:(' + cln_str + '.*)', all_slots)
+        cln_tapes += re.findall(r'I:(\d+):F:(' + cln_str + '.*)', all_slots)
     if len(cln_tapes) > 0:
         log('Found the following cleaning tapes: ' + str(cln_tapes), 20)
     else:
@@ -619,19 +619,19 @@ def get_sg_node():
             # -----------------------------------------------------------
             # The ls command outputs a line feed that needs to be stripped
             # ------------------------------------------------------------
-            st = '/dev/' + re.sub('.* -> .*/n*(st\d+).*$', '\\1', result.stdout.rstrip('\n'), re.S)
+            st = '/dev/' + re.sub(r'.* -> .*/n*(st\d+).*$', '\\1', result.stdout.rstrip('\n'), re.S)
         cmd = lsscsi_bin + ' -g'
         log('lsscsi command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
         chk_cmd_result(result, cmd)
-        sg_search = re.search('.*' + st + ' .*(/dev/sg\d+)', result.stdout)
+        sg_search = re.search('.*' + st + ' .*(/dev/sg\\d+)', result.stdout)
         if sg_search:
             sg = sg_search.group(1)
             log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 20)
             return sg
     elif uname == 'FreeBSD':
-        sa = re.sub('/dev/(sa\d+)', '\\1', drive_device)
+        sa = re.sub(r'/dev/(sa\d+)', '\\1', drive_device)
         # On FreeBSD, tape drive device nodes are '/dev/sa#'
         # and their corresponding scsi generic device nodes
         # are '/dev/pass#'. We can correlate them with the
@@ -651,7 +651,7 @@ def get_sg_node():
         result = get_shell_result(cmd)
         log_cmd_results(result)
         chk_cmd_result(result, cmd)
-        sg_search = re.search('.*\((pass\d+),' + sa + '\)', result.stdout)
+        sg_search = re.search('.*\\((pass\\d+),' + sa + '\\)', result.stdout)
         if sg_search:
             sg = '/dev/' + sg_search.group(1)
             log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 20)
@@ -688,7 +688,7 @@ def tapealerts(sg, clr=False):
     # TapeAlert[20]:     Clean Now: The tape drive neads cleaning NOW.
     # TapeAlert[21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
     # -------------------------------------------------------------------------------------
-    return re.findall('TapeAlert\[(\d+)\]: +(.*)', result.stdout)
+    return re.findall(r'TapeAlert\[(\d+)\]: +(.*)', result.stdout)
 
 def checkdrive():
     'Given a tape drive /dev/sg# node, check tapeinfo output, call clean() if "clean drive" alerts exist.'
@@ -1011,7 +1011,7 @@ jobid = args['--jobid']
 # of the jobname passed to us by the SD?
 # --------------------------------------
 if args['--jobname'] is not None and strip_jobname:
-    jobname = re.sub('(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['--jobname'])
+    jobname = re.sub(r'(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['--jobname'])
 else:
     jobname = args['--jobname']
 
