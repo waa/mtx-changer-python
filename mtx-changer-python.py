@@ -121,8 +121,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.24'
-reldate = 'November 28, 2023'
+version = '1.25'
+reldate = 'May 02, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
