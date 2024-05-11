@@ -13,7 +13,7 @@
 #                   - Control what information gets logged by setting the
 #                     'debug_level' variable.
 #                   - Automatic tape drive cleaning. Can be configured to
-#                     check a drive's tapeinfo status after an unload and
+#                     check a drive's sg_logs status after an unload and
 #                     automatically load a cleaning tape, wait, then unload
 #                     it.
 #
@@ -121,8 +121,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.25'
-reldate = 'May 02, 2023'
+version = '1.26'
+reldate = 'May 10, 2023'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -143,15 +143,6 @@ cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'include_import_export', '
 # in the load() and unload() functions.
 # ----------------------------------------
 slot = drive_device = drv_idx = drive_index = ''
-
-# List of tapeinfo codes indicating
-# that a drive needs to be cleaned
-# Example tapeinfo 'cleaning required' codes and messages:
-#
-# [20]:     Clean Now: The tape drive neads cleaning NOW.
-# [21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
-# ----------------------------------------------------------------------------
-cln_codes = ['20', '21']
 
 # Lists of platform specific binaries
 # -----------------------------------
@@ -236,6 +227,7 @@ def log_cmd_results(result):
 
 def chk_cmd_result(result, cmd):
     'Given a result object, check the returncode, then log and exit if non zero.'
+    log('In function: chk_cmd_result()', 50)
     if result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         # The SD will print this stdout after 'Result=' in the job log
@@ -580,7 +572,7 @@ def clean(cln_tapes):
 def get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
     log('In function: get_sg_node()', 50)
-    log('Determining the tape drive\'s scsi generic device node required by tapeinfo', 20)
+    log('Determining the tape drive\'s scsi generic device node required by sg_logs', 20)
     if uname == 'Linux':
         # Use `lsscsi` on Linux to always identify the
         # correct scsi generic device node on-the-fly.
@@ -653,38 +645,36 @@ def get_sg_node():
         log('Failed to identify an sg node device for drive device ' + drive_device, 20)
         return 1
 
-def tapealerts(sg, clr=False):
-    'Call the tapeinfo_bin and return any tape alerts.'
+def tapealerts(sg):
+    'Call the sglogs_bin and return any tape alerts.'
     log('In function: tapealerts()', 50)
-    # TODO - waa - 20231127 - I have found that sometimes tapeinfo does not show any
-    #                         TapeAlert messages, but `sg_logs` from sg3_utils package
-    #                         always reports if the drive needs cleaning with the
-    #                         following text:
-    # ----------------------------------------------------
+    # waa - 20240510 - We can't/shouldn't use tapeinfo here any more. This is because
+    #                  tapeinfo clears the TapeAlert registers upon reading them.
+    #                  This can possibly break the functionality of tapeinfo when
+    #                  it is called in an SD's Drive Device's `AlertCommmand` script.
+    #                  This is important because the SD has the ability to disable a
+    #                  Drive, or flag a tape volume's volstatus as `Error` when
+    #                  critical problems are detected.
+    # -------------------------------------------------------------------------------
+    # Call sg_logs and parse for 'Cleaning action required'
+    # -----------------------------------------------------
+    cmd = sglogs_bin + ' --page=0xc ' + sg
+    log('Checking' + ' drive (sg node: ' + sg + ') with sg_logs utility', 20)
+    log('sg_logs command: ' + cmd, 30)
+    result = get_shell_result(cmd)
+    log_cmd_results(result)
+    chk_cmd_result(result, cmd)
+    # Some example `sg_logs` outputs showing Cleaning status messages
+    # ---------------------------------------------------------------
     # sg_logs --page=0xc /dev/sg7 | grep "Cleaning action"
     # Cleaning action required
     # sg_logs --page=0xc /dev/sg5 | grep "Cleaning action"
     # Cleaning action not required (or completed)
     # ----------------------------------------------------
-    # Call tapeinfo and parse for alerts
-    # ----------------------------------
-    cmd = tapeinfo_bin + ' -f ' + sg
-    log(('Clearing tapeinfo \'TapeAlert[11]: Cleaning Media...\' on' if clr else 'Checking') \
-         + ' drive (sg node: ' + sg + ') with tapeinfo utility', 20)
-    log('tapeinfo command: ' + cmd, 30)
-    result = get_shell_result(cmd)
-    log_cmd_results(result)
-    chk_cmd_result(result, cmd)
-    # Some example tapeinfo output when 'TapeAlert' alert lines exist:
-    # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
-    # TapeAlert[15]: Undefined.
-    # TapeAlert[20]:     Clean Now: The tape drive neads cleaning NOW.
-    # TapeAlert[21]: Clean Periodic:The tape drive needs to be cleaned at next opportunity.
-    # -------------------------------------------------------------------------------------
-    return re.findall(r'TapeAlert\[(\d+)\]: +(.*)', result.stdout)
+    return re.search(r'Cleaning action required', result.stdout)
 
 def checkdrive():
-    'Given a tape drive /dev/sg# node, check tapeinfo output, call clean() if "clean drive" alerts exist.'
+    'Given a tape drive /dev/sg# node, check sg_logs output, call clean() if "Cleaning action required" messages exist.'
     log('In function: checkdrive()', 50)
     # First, we need to check and see if we have any cleaning tapes in the library
     # ----------------------------------------------------------------------------
@@ -700,51 +690,32 @@ def checkdrive():
             # ---------------------------------------------------------------------
             return 1
 
-    # Next, we need the drive device's /dev/sg# node required by tapeinfo
-    # -------------------------------------------------------------------
+    # Next, we need the drive device's /dev/sg# node required by sg_logs
+    # ------------------------------------------------------------------
     sg = get_sg_node()
     if sg == 1:
         # Return to the unload() function with 1 because we cannot run
-        # tapeinfo without an sg node, but the unload() function that called
-        # us has already successfully unloaded the tape before it called us and
-        # it needs to exit cleanly so the SD sees a 0 return code and can
-        # continue.
-        # ---------------------------------------------------------------------
+        # sg_logs without an sg node, but the unload() function that called
+        # us has already successfully unloaded the tape before it called us
+        # and it needs to exit cleanly so the SD sees a 0 return code and
+        # can continue.
+        # -----------------------------------------------------------------
         return 1
 
-    # Call the tapealerts() function and
-    # check if we have any cleaning alerts
+    # Call the tapealerts() function to
+    # check if the drive requires cleaning
     # ------------------------------------
-    log('INFO: Calling tapealerts() to check for any tapeinfo \'Cleaning required\' alerts', 20)
-    tapealerts_txt = tapealerts(sg)
-    if len(tapealerts_txt) > 0:
-        clean_drive = False
-        log('INFO: Found ' + str(len(tapealerts_txt)) + ' tape alert' + ('s' if len(tapealerts_txt) > 1 else '') \
-            + ' for drive device ' + drive_device + ' (' + sg + '):', 20)
-        for alert in tapealerts_txt:
-            log('      [' + alert[0] + ']: ' + alert[1], 20)
-        for cln_code in cln_codes:
-            if any(cln_code in i for i in tapealerts_txt):
-                clean_drive = True
-                # Stop checking once we match any of the
-                # cleaning alert codes in the clean_codes list
-                # --------------------------------------------
-                break
-        if clean_drive:
-            if auto_clean:
-                log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True. Calling clean() function', 20)
-                clean(cln_tapes)
-                # Call the tapealerts() function one more time just to clear out the leftover alert:
-                # TapeAlert[11]: Cleaning Media:Cannot back up or restore to a cleaning cartridge.
-                # ----------------------------------------------------------------------------------
-                log('INFO: Calling tapealerts() one more time to clear the \'TapeAlert[11]: Cleaning Media...\' alert', 20)
-                tapealerts(sg, clr=True)
-            else:
-                log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False. Skipping cleaning', 20)
+    log('INFO: Calling tapealerts() to check for any sg_logs \'Cleaning action required\' messages', 20)
+    clean_action = tapealerts(sg)
+    if clean_action:
+        log('WARN: ' + clean_action.group() + ' for drive device ' + drive_device + ' (' + sg + '):', 20)
+        if auto_clean:
+            log('INFO: Drive requires cleaning and the \'auto_clean\' variable is True, calling clean() function', 20)
+            clean(cln_tapes)
         else:
-            log('No "Drive needs cleaning" tape alerts detected', 20)
+            log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False, skipping cleaning', 20)
     else:
-        log('No tape alerts detected', 20)
+       log('No \'Cleaning action required\' messages detected', 20)
     # Now we we need to just return
     # to the unload() function
     # -----------------------------
@@ -807,8 +778,7 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             if int(load_sleep) != 0:
                 log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle', 20)
                 sleep(int(load_sleep))
-            # TODO: 20240310 - Need to find out (t10.org??) when we should check a drive with tapeinfo
-            #                  Should it be checked right after load or right after unload???
+            # TODO: 20240510 - Why did I comment this? lol
             # elif chk_drive:
             #     log('The chk_drive variable is True, calling checkdrive() function', 20)
             #     if checkdrive() == 1:
@@ -881,20 +851,20 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             # drive still reports it needs cleaning after it has been cleaned.
             # --------------------------------------------------------------------------
             if cln:
-                log('A cleaning tape (' + vol[0] + ') was just unloaded, skipping tapeinfo tests', 20)
+                log('A cleaning tape (' + vol[0] + ') was just unloaded, skipping \'Cleaning action required\' checks', 20)
             elif chk_drive:
                 log('The chk_drive variable is True, calling checkdrive() function', 20)
                 if checkdrive() == 1:
                     # I think there is nothing to do here. We could not get an sg
                     # node, or there are no cleaning tapes in the library, so we
-                    # cannot run tapeinfo but the drive has been successfully
+                    # cannot run sg_logs but the drive has been successfully
                     # unloaded, so we just need to log and exit cleanly here.
                     # -----------------------------------------------------------
                     log('Exiting unload() volume ' + ('(' + vol[0] + ')' if vol != '' else '') \
                         + ' with return code ' + str(result.returncode), 30)
                     return 0
             else:
-                log('The chk_drive variable is False, skipping tapeinfo tests', 20)
+                log('The chk_drive variable is False, skipping \'cleaning required\' tests', 20)
             log('Exiting unload() volume ' + ('(' + vol[0] + ') ' if vol != '' else '') \
                 + 'with return code ' + str(result.returncode), 30)
     return result.returncode
