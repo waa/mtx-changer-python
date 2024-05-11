@@ -478,14 +478,6 @@ def getvolname(cln_slot=None):
     # If mtx_cmd is transfer we need to return src_vol and dst_vol
     # ------------------------------------------------------------
     log('In function: getvolname()', 50)
-    # Make 'all_slots' global since it is used
-    # by the chk_for_cln_tapes() function
-    # ----------------------------------------
-    global all_slots
-    # Prevent calling listall() twice;
-    # Once for src_vol and once for dst_vol
-    # -------------------------------------
-    all_slots = listall()
     if mtx_cmd == 'transfer':
         vol = re.search('[SI]:' + slot + ':.:(.*)', all_slots)
         if vol:
@@ -577,6 +569,7 @@ def clean(cln_tapes):
     'Given the cln_tapes list of available cleaning tapes, randomly pick one and load it.'
     log('In function: clean()', 50)
     log('Selecting a cleaning tape', 20)
+    # cln_tuple = random.choice(cln_tapes)
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
@@ -1068,6 +1061,11 @@ chk_bins()
 # -------------------------------------------
 ready = get_ready_str()
 
+# Get a list of all volumes in all slots
+# This will be used throughout the script
+# ---------------------------------------
+all_slots = listall()
+
 # Check to see if the operation can/should log volume
 # names. If yes, call the getvolname() function
 # ---------------------------------------------------
@@ -1079,7 +1077,7 @@ if mtx_cmd in ('load', 'loaded', 'unload', 'transfer'):
 if mtx_cmd == 'list':
     print(list())
 elif mtx_cmd == 'listall':
-   print(listall())
+   print(all_slots)
 elif mtx_cmd == 'slots':
     print(slots())
 elif mtx_cmd == 'loaded':
