@@ -864,7 +864,7 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
                         + ' with return code ' + str(result.returncode), 30)
                     return 0
             else:
-                log('The chk_drive variable is False, skipping \'cleaning required\' tests', 20)
+                log('The chk_drive variable is False, skipping \'Cleaning action required\' checks', 20)
             log('Exiting unload() volume ' + ('(' + vol[0] + ') ' if vol != '' else '') \
                 + 'with return code ' + str(result.returncode), 30)
     return result.returncode
