@@ -3,7 +3,7 @@
   - Clear logging of actions when 'debug_level' != 0
   - Control what information gets logged by setting the 'debug_level' variable
   - Automatic tape drive cleaning.
-    - Can be configured to check a drive's `tapeinfo` status after an unload, automatically find and load a cleaning tape, wait, then unload it
+    - Can be configured to check a drive's `sg_logs` status after an unload, automatically find and load a cleaning tape, wait, then unload it
 
 Please edit the `mtx-changer-python.conf` configuration file to customize what (if anything) gets logged to the debug log file, and to set other custom variables for the library or libraries managed by the SD.
 
