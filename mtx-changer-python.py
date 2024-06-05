@@ -228,7 +228,9 @@ def log_cmd_results(result):
 def chk_cmd_result(result, cmd):
     'Given a result object, check the returncode, then log and exit if non zero.'
     log('In function: chk_cmd_result()', 50)
-    if result.returncode != 0:
+    if 'sg_logs' in cmd and result.returncode == 6:
+        return result.returncode
+    elif result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
         # The SD will print this stdout after 'Result=' in the job log
         # ------------------------------------------------------------
@@ -525,7 +527,7 @@ def wait_for_drive(vol):
         if re.search(ready, result.stdout):
             log('Device ' + drive_device + ' (drive index: ' + drive_index + ') ready', 20)
             break
-        log('Device ' + drive_device + ' (drive index: ' + drive_index + ') not ready, sleeping for one second and retrying...', 20)
+        log('Device ' + drive_device + ' (drive index: ' + drive_index + ') not ready, sleeping for one second and retrying...', 30)
         sleep(1)
         s += 1
     if s == int(load_wait) + 1:
@@ -663,7 +665,39 @@ def tapealerts(sg):
     log('sg_logs command: ' + cmd, 30)
     result = get_shell_result(cmd)
     log_cmd_results(result)
-    chk_cmd_result(result, cmd)
+    # waa - 20240516 - It seems, that on a physical drive (not on mhVTL), the first time
+    #                  sg_logs is called, we get a "unit attention" (returncode 6), and
+    #                  no information about a Cleaning action required (or not required)
+    #                  so we check for this and then just make the sg_logs call again
+    #                  and report those results.
+    # ----------------------------------------------------------------------------------
+    # EXAMPLE:
+    # --------
+    # mtx -f /dev/tape/by-id/scsi-3500110a000896f20 unload 14 1 && sg_logs --page=0xc /dev/sg5
+    # Unloading drive 1 into Storage Element 14...done
+    #     HP        Ultrium 5-SCSI    Z6KW
+    # log sense:  Fixed format, current;  Sense key: Unit Attention
+    #  Additional sense: Mode parameters changed
+    # log_sense: unit attention
+    # echo $?
+    # 6
+    # sg_logs --page=0xc /dev/sg5
+    #     HP        Ultrium 5-SCSI    Z6KW
+    # Sequential access device page (ssc-3)
+    #   Data bytes received with WRITE commands: 0 GB
+    #   Data bytes written to media by WRITE commands: 0 GB
+    #   Data bytes read from media by READ commands: 0 GB
+    #   Data bytes transferred by READ commands: 0 GB
+    #   Native capacity from BOP to EOD: 4294967295 MB
+    #   Native capacity from BOP to EW of current partition: 4294967295 MB
+    #   Minimum native capacity from EW to EOP of current partition: 4294967295 MB
+    #   Native capacity from BOP to current position: 4294967295 MB
+    #   Maximum native capacity in device object buffer: 0 MB
+    #   Cleaning action not required (or completed)
+    if chk_cmd_result(result, cmd) == 6:
+        log('Recieved a "unit attention" status, retrying...', 30)
+        result = get_shell_result(cmd)
+        log_cmd_results(result)
     # Some example `sg_logs` outputs showing Cleaning status messages
     # ---------------------------------------------------------------
     # sg_logs --page=0xc /dev/sg7 | grep "Cleaning action"
