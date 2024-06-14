@@ -563,7 +563,6 @@ def clean(cln_tapes):
     'Given the cln_tapes list of available cleaning tapes, randomly pick one and load it.'
     log('In function: clean()', 50)
     log('Selecting a cleaning tape', 20)
-    # cln_tuple = random.choice(cln_tapes)
     cln_tuple = random.choice(cln_tapes)
     cln_slot = cln_tuple[0]
     cln_vol = cln_tuple[1]
