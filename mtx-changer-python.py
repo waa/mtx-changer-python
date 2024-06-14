@@ -112,26 +112,26 @@ import re
 import sys
 import random
 import shutil
+import argparse
 import subprocess
 from time import sleep
-from docopt import docopt
 from datetime import datetime
 from configparser import ConfigParser, BasicInterpolation
 
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.28'
-reldate = 'June 04, 2024'
+version = '1.29'
+reldate = 'June 14, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
-prog_info_txt = progname + ' - v' + version + ' - ' + scriptname \
+prog_info_txt = '\n' + progname + ' - v' + version + ' - ' + scriptname \
                 + '\nBy: ' + progauthor + ' ' + authoremail + ' (c) ' + reldate + '\n\n'
 
 # List of valid mtx_cmd choices:
 # ------------------------------
-valid_mtx_cmd_lst = ['slots', 'list', 'listall', 'loaded', 'load', 'unload', 'transfer']
+valid_mtx_cmd_lst = ['list', 'listall', 'load', 'loaded', 'slots', 'transfer', 'unload']
 
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
@@ -149,31 +149,21 @@ slot = drive_device = drv_idx = drive_index = ''
 linux_bin_lst = ['lsscsi_bin']
 fbsd_bin_lst = ['camcontrol_bin']
 
-# Define the docopt string
-# ------------------------
-doc_opt_str = """
-Usage:
-    mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
-    mtx-changer-python.py -h | --help
-    mtx-changer-python.py -v | --version
-
-Options:
--c, --config <config>     Configuration file. [default: /opt/bacula/scripts/mtx-changer-python.conf]
--s, --section <section>   Section in configuration file. [default: DEFAULT]
--i, --jobid <jobid>       The JobId. [default: None]
--j, --jobname <jobname>   The Job name. [default: None]
-
-chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
-mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
-slot                      The one-based library slot to load/unload, or the source slot for the transfer command.
-drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
-                          Or, the destination slot for the transfer command.
-drive_index               The zero-based drive index.
-
--h, --help                Print this help message
--v, --version             Print the script name and version
-
-"""
+# Define the argparse arguments, descriptions, defaults, etc
+# waa - Something to look into: https://www.reddit.com/r/Python/comments/11hqsbv/i_am_sick_of_writing_argparse_boilerplate_code_so/
+# ---------------------------------------------------------------------------------------------------------------------------------
+parser = argparse.ArgumentParser(prog=scriptname, description='Drop-in replacement for mtx-changer bash/perl script with more features.')
+parser.add_argument('-v', '--version', help='Print the script version.', version=scriptname + " v" + version, action='version')
+parser.add_argument('-c', '--config', help='Configuration file.', default='/opt/bacula/scripts/mtx-changer-python.conf', type=argparse.FileType('r'))
+parser.add_argument('-s', '--section', help='Section in configuration file.', default='DEFAULT')
+parser.add_argument('-i', '--jobid', help='The jobid.', default=None)
+parser.add_argument('-j', '--jobname', help='The job name.', default=None)
+parser.add_argument('chgr_device', help='The library\'s /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.')
+parser.add_argument('mtx_cmd', help='The mtx command to issue.', choices=valid_mtx_cmd_lst)
+parser.add_argument('slot', help='The one-based library slot to load/unload, or the source slot for the transfer command.')
+parser.add_argument('drive_device', help='The drive\'s /dev/nst#, /dev/tape/by-id/*-nst, /dev/tape/by-path/* node. Or, the destination slot for the transfer command.')
+parser.add_argument('drive_index', help='The zero-based drive index.')
+args = parser.parse_args()
 
 # Now for some functions
 # ----------------------
@@ -183,7 +173,7 @@ def now():
 
 def usage():
     'Show the instructions and script information.'
-    print(doc_opt_str)
+    parser.print_help()
     print(prog_info_txt)
     sys.exit(1)
 
@@ -194,8 +184,8 @@ def log(text, level, hdr=None):
             file.write(('\n' if '[ Starting ' in text else '') \
             + now() + ' ' \
             + (chgr_name + ' ' if len(chgr_name) != 0 else '') \
-            + ('JobId: ' + jobid + ' ' if jobid not in ('', '0', 'None') else '') \
-            + ('Job: ' + jobname + ' ' if jobname not in ('', 'None', '*System*') else (jobname + ' ' if jobname != 'None' else '')) \
+            + ('JobId: ' + jobid + ' ' if jobid not in ('', '0', None) else '') \
+            + ('Job: ' + jobname + ' ' if jobname not in ('', None, '*System*') else (jobname + ' ' if jobname != None else '')) \
             + ('- ' if hdr is None else '| ') + text.rstrip('\n') + '\n')
 
 def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
@@ -208,9 +198,7 @@ def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
         error_txt = 'The binary variable \'' + bin_var[0] + '\', pointing to \'' + bin_var[1] + '\' does not exist or is not executable.'
     elif opt == 'truefalse':
         error_txt = 'The variable \'' + tfk + '\' (' + tfv + ') must be a boolean \'True\' or \'False\'.'
-    elif opt == 'mtx_cmd':
-        error_txt = 'The mtx_cmd variable \'' + mtx_cmd  + '\' is invalid.\nValid mtx_cmd choices are: ' + ', '.join(valid_mtx_cmd_lst)
-    return '\n' + error_txt
+    return '\n' + error_txt + '\n'
 
 def log_cmd_results(result):
     'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
@@ -944,14 +932,10 @@ def transfer():
 # ================
 # BEGIN the script
 # ================
-# Assign docopt doc string variable
-# ---------------------------------
-args = docopt(doc_opt_str, version='\n' + progname + ' - v' + version + '\n' + reldate + '\n')
-
 # Check for and parse the configuration file first
 # ------------------------------------------------
-config_file = args['--config']
-config_section = args['--section']
+config_file = args.config.name
+config_section = args.section
 if not os.path.exists(config_file) or not os.access(config_file, os.R_OK):
     print(print_opt_errors('config'))
     usage()
@@ -991,25 +975,23 @@ for k, v in config_dict.items():
     # -----------------------
     myvars[k] = config_dict[k]
 
-# Assign variables from args set
-# ------------------------------
-mtx_cmd = args['<mtx_cmd>']
-if mtx_cmd not in valid_mtx_cmd_lst:
-    print(print_opt_errors('mtx_cmd'))
-    usage()
-chgr_device = args['<chgr_device>']
-drive_device = args['<drive_device>']
-drive_index = args['<drive_index>']
-slot = args['<slot>']
-jobid = args['--jobid']
+# Assign variables from argparse Namespace
+# ----------------------------------------
+mtx_cmd = args.mtx_cmd
+chgr_device = args.chgr_device
+drive_device = args.drive_device
+drive_index = args.drive_index
+slot = args.slot
+jobid = args.jobid
+jobname = args.jobname
 
 # Should we strip the long datestamp off
 # of the jobname passed to us by the SD?
 # --------------------------------------
-if args['--jobname'] is not None and strip_jobname:
-    jobname = re.sub(r'(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args['--jobname'])
+if jobname is not None and strip_jobname:
+    jobname = re.sub(r'(^.*)\.\d{4}\-\d{2}-\d{2}_.*', '\\1', args.jobname)
 else:
-    jobname = args['--jobname']
+    pass
 
 # Check the boolean variables
 # ---------------------------
@@ -1022,11 +1004,11 @@ for var in cfg_file_true_false_lst:
 # level of 10, log command line
 # variables to log file
 # ------------------------------
-log('-'*10 + '[ Starting ' + sys.argv[0] + ' v' + version + ' ]' + '-'*10 , 10, hdr=True)
-log('Config File: ' + args['--config'], 10, hdr=True)
-log('Config Section: [' + args['--section'] + ']', 10, hdr=True)
-log(('JobId: ' + jobid if jobid not in ('0', 'None') else ''), 10, hdr=True)
-log(('Job Name: ' + jobname if jobname != 'None' else ''), 10, hdr=True)
+log('-'*10 + '[ Starting ' + progname + ' v' + version + ' ]' + '-'*10 , 10, hdr=True)
+log('Config File: ' + config_file, 10, hdr=True)
+log('Config Section: [' + config_section + ']', 10, hdr=True)
+log(('JobId: ' + jobid if jobid not in ('0', None) else ''), 10, hdr=True)
+log(('Job Name: ' + jobname if jobname != None else ''), 10, hdr=True)
 log('Changer Device: ' + chgr_device, 10, hdr=True)
 log('Drive Device: ' + drive_device, 10, hdr=True)
 log('Command: ' + mtx_cmd, 10, hdr=True)
@@ -1080,7 +1062,7 @@ if mtx_cmd in ('load', 'loaded', 'unload', 'transfer'):
 if mtx_cmd == 'list':
     print(list())
 elif mtx_cmd == 'listall':
-   print(all_slots)
+    print(all_slots)
 elif mtx_cmd == 'slots':
     print(slots())
 elif mtx_cmd == 'loaded':
@@ -1092,7 +1074,4 @@ elif mtx_cmd == 'unload':
     result = unload()
     sys.exit(result)
 elif mtx_cmd == 'transfer':
-   transfer()
-else:
-    print(print_opt_errors('command'))
-    usage()
+    transfer()
