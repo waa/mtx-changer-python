@@ -42,27 +42,29 @@ Instructions on which parameters are optional, which are required, and the order
 
 Command line parameter use:
 ```
-Usage:
-    mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
-    mtx-changer-python.py -h | --help
-    mtx-changer-python.py -v | --version
+usage: mtx-changer-python.py [-h] [-v] [-c CONFIG] [-s SECTION] [-i JOBID] [-j JOBNAME] chgr_device {list,listall,load,loaded,slots,transfer,unload} slot drive_device drive_index
 
-Options:
--c, --config <config>     Configuration file. [default: /opt/bacula/scripts/mtx-changer-python.conf]
--s, --section <section>   Section in configuration file. [default: DEFAULT]
--i --jobid <jobid>        The JobId. [default: None]
--j --jobname <jobname>    The Job name. [default: None]
+Drop-in replacement for mtx-changer bash/perl script with more features.
 
-chgr_device               The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
-mtx_cmd                   Valid commands are: slots, list, listall, loaded, load, unload, transfer.
-slot                      The one-based library slot to load/unload, or the source slot for the transfer command.
-drive_device              The drive's /dev/nst#, or /dev/tape/by-id/*-nst, or /dev/tape/by-path/* node.
-                          Or, the destination slot for the transfer command.
-drive_index               The zero-based drive index.
+positional arguments:
+  chgr_device           The library's /dev/sg#, or /dev/tape/by-id/*, or /dev/tape/by-path/* node.
+  {list,listall,load,loaded,slots,transfer,unload}
+                        The mtx command to issue.
+  slot                  The one-based library slot to load/unload, or the source slot for the transfer command.
+  drive_device          The drive's /dev/nst#, /dev/tape/by-id/*-nst, /dev/tape/by-path/* node. Or, the destination slot for the transfer command.
+  drive_index           The zero-based drive index.
 
--h, --help                Print this help message
--v, --version             Print the script name and version
-
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --version         Print the script version.
+  -c CONFIG, --config CONFIG
+                        Configuration file.
+  -s SECTION, --section SECTION
+                        Section in configuration file.
+  -i JOBID, --jobid JOBID
+                        The jobid.
+  -j JOBNAME, --jobname JOBNAME
+                        The job name.
 ```
 
 ### Example command lines and outputs:
