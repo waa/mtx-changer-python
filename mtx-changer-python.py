@@ -26,51 +26,6 @@
 # settings.
 # ----------------------------------------------------------------------------
 #
-# Modified notes from the original bash/perl mtx-changer script
-# -------------------------------------------------------------
-# This script is called by the Bacula SD, configured in the
-# Autochanger's ChangerCommand setting like in this default example:
-#
-# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d"
-#
-# Additionally, new, optional parameters such as a configuration file, configuration section,
-# a jobid, and jobname may also be specified:
-#
-# mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
-#
-# All <required> parameters must be passed to the script and they must be in the correct order as listed above.
-# Bacula's SD will always pass all options specified on the ChangerCommand line even though in some cases not
-# all of them are needed.
-#
-# In the example command line above, we can see that the parameters '-c config', '-s section', '-i jobid',
-# and '-j jobname' are optional but if used they must come before (or after) the other <required> parameters.
-#
-# For example, if you wanted to use a specific section in the default config file, and also wanted to have
-# the jobid and job name written to every line in the log file, the following ChangerCommand command line would work:
-#
-# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py -s My_Section -i %i -j %j %c %o %S %a %d"
-#
-# NOTE: The %i is not supported by the SD ChangerCommand in Bacula Community before 15.0.2
-#       and Bacula Enterprise before 18.0.0. This option should be available on or about November 14, 2023.
-#
-#
-#  Valid '<mtx_cmd>' commands are:
-#  - list      List available volumes in slot:volume format.
-#  - listall   List all slots in one of the following formats:
-#              - For Drives:         D:drive index:F:slot:volume - D:0:F:5:G03005TA or for an empty drive:               D:3:E
-#              - For Slots:          S:slot:F:volume             - S:2:F:G03002TA   or for an empty slot:                S:1:E
-#              - For Import/Export:  I:slot:F:volume             - I:41:F:G03029TA  or for am empty import/export slot:  I:42:E
-#  - slots     Show the number of slots in the autochanger.
-#  - load      Load a a slot to a drive.
-#  - unload    Unload a drive to a slot.
-#  - loaded    Show which slot is loaded in a drive, else 0 if the drive is empty.
-#  - transfer  Transfer a volume from one slot to another. In this case, the <drive_device> is the destination slot.
-#
-#  Slots are numbered from 1.
-#  Drives are numbered from 0.
-#
-# -----------------------------------------------------------------------
-#
 # BSD 2-Clause License
 #
 # Copyright (c) 2023, William A. Arlofski waa@revpol.com
@@ -99,6 +54,49 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # -----------------------------------------------------------------------
+#
+# Modified notes from the original bash/perl mtx-changer script
+# -------------------------------------------------------------
+# This script is called by the Bacula SD, configured in the
+# Autochanger's ChangerCommand setting like in this default example:
+#
+# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py %c %o %S %a %d"
+#
+# Additionally, new, optional parameters such as a configuration file, configuration section,
+# a jobid, and jobname may also be specified:
+#
+# mtx-changer-python.py [-c <config>] [-s <section>] [-i <jobid>] [-j <jobname>] <chgr_device> <mtx_cmd> <slot> <drive_device> <drive_index>
+#
+# All <required> parameters must be passed to the script and they must be in the correct order as listed above.
+# Bacula's SD will always pass all options specified on the ChangerCommand line even though in some cases not
+# all of them are needed.
+#
+# In the example command line above, we can see that the parameters '-c config', '-s section', '-i jobid',
+# and '-j jobname' are optional.
+#
+# For example, if you wanted to use a specific section in the default config file, and also wanted to have
+# the jobid and job name written to every line in the log file, the following ChangerCommand command line would work:
+#
+# ChangerCommand = "/opt/bacula/scripts/mtx-changer-python.py -s My_Section -i %i -j %j %c %o %S %a %d"
+#
+# NOTE: The %i is not supported by the SD ChangerCommand in Bacula Community before 15.0.2
+#       and Bacula Enterprise before 18.0.0. This option should be available on or about November 14, 2023.
+#
+#
+#  Valid '<mtx_cmd>' commands are:
+#  - list      List available volumes in slot:volume format.
+#  - listall   List all slots in one of the following formats:
+#              - For Drives:         D:drive index:F:slot:volume - D:0:F:5:G03005TA or for an empty drive:               D:3:E
+#              - For Slots:          S:slot:F:volume             - S:2:F:G03002TA   or for an empty slot:                S:1:E
+#              - For Import/Export:  I:slot:F:volume             - I:41:F:G03029TA  or for am empty import/export slot:  I:42:E
+#  - slots     Show the number of slots in the autochanger.
+#  - load      Load a a slot to a drive.
+#  - unload    Unload a drive to a slot.
+#  - loaded    Show which slot is loaded in a drive, else 0 if the drive is empty.
+#  - transfer  Transfer a volume from one slot to another. In this case, the <drive_device> is the destination slot.
+#
+#  Slots are numbered from 1.
+#  Drives are numbered from 0.
 #
 # ============================================================
 # Nothing below this line should need to be modified
