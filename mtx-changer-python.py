@@ -119,7 +119,7 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.30'
+version = '1.31'
 reldate = 'August 07, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
@@ -754,7 +754,7 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to load a tape into a drive that is full
     # ------------------------------------------------------------
     if loaded() != '0':
-        log('Exiting with return code 1', 30)
+        log('Can\'t load a drive that is full, exiting with return code 1', 20)
         return 1
     # Don't bother trying to load a tape from a slot that is empty
     # ------------------------------------------------------------
@@ -817,13 +817,12 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to unload an empty drive
     # --------------------------------------------
     if loaded() == '0':
-        log('Exiting with return code 0', 30)
-        return 0
+        log('Can\'t unload a drive that is empty, exiting with return code 1', 20)
+        return 1
     # Don't bother trying to unload a tape into a full slot
     # -----------------------------------------------------
     elif vol[1] != '':
-        log('Slot ' + slt + ' is full with volume (' + vol[1] + ')', 20)
-        log('Exiting with return code 1', 30)
+        log('Slot ' + slt + ' is full with volume (' + vol[1] + '), exiting with return code 1', 20)
         return 1
     else:
         if offline:
