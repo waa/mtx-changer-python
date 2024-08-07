@@ -119,8 +119,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.29'
-reldate = 'June 14, 2024'
+version = '1.30'
+reldate = 'August 07, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -758,7 +758,7 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         return 1
     # Don't bother trying to load a tape from a slot that is empty
     # ------------------------------------------------------------
-    elif vol == '':
+    elif vol[0] == '':
         log('Slot ' + slt + ' is empty, exiting with return code 1', 20)
         return 1
     else:
