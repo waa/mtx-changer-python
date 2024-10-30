@@ -28,7 +28,7 @@
 #
 # BSD 2-Clause License
 #
-# Copyright (c) 2023, William A. Arlofski waa@revpol.com
+# Copyright (c) 2023-2024, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -119,8 +119,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.31'
-reldate = 'August 07, 2024'
+version = '1.32'
+reldate = 'October 29, 2024'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -134,8 +134,10 @@ valid_mtx_cmd_lst = ['list', 'listall', 'load', 'loaded', 'slots', 'transfer', '
 # This list is so that we can reliably convert the True/False strings
 # from the config file into real booleans to be used in later tests.
 # -------------------------------------------------------------------
-cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'include_import_export', 'inventory',
-                           'log_cfg_vars', 'offline', 'strip_jobname', 'vxa_packetloader']
+cfg_file_true_false_lst = ['auto_clean', 'chk_drive', 'chgr_name_hdr_only',
+                           'include_import_export', 'inventory', 'jobid_hdr_only',
+                           'jobname_hdr_only', 'log_cfg_vars', 'offline',
+                           'strip_jobname', 'vxa_packetloader']
 
 # Initialize these to satisfy the defaults
 # in the load() and unload() functions.
@@ -181,9 +183,10 @@ def log(text, level, hdr=None):
         with open(mtx_log_file, 'a+') as file:
             file.write(('\n' if '[ Starting ' in text else '') \
             + now() + ' ' \
-            + (chgr_name + ' ' if len(chgr_name) != 0 else '') \
-            + ('JobId: ' + jobid + ' ' if jobid not in ('', '0', None) else '') \
-            + ('Job: ' + jobname + ' ' if jobname not in ('', None, '*System*') else (jobname + ' ' if jobname != None else '')) \
+            + (chgr_name + ' ' if (len(chgr_name) != 0 and not chgr_name_hdr_only) else '') \
+            + ('JobId: ' + jobid + ' ' if (jobid not in ('', '0', None) and not jobid_hdr_only) else '') \
+            + ('Job: ' + jobname + ' ' if (jobname not in ('', None, '*System*') and not jobname_hdr_only) \
+              else (jobname + ' ' if jobname != None and not jobname_hdr_only else '')) \
             + ('- ' if hdr is None else '| ') + text.rstrip('\n') + '\n')
 
 def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
@@ -754,12 +757,22 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to load a tape into a drive that is full
     # ------------------------------------------------------------
     if loaded() != '0':
-        log('Can\'t load a drive that is full, exiting with return code 1', 20)
+        fail_txt = 'Can\'t load a drive that is full, exiting with return code 1'
+        log(fail_txt, 20)
+        # Printing to stdout here is necessary so
+        # that it is logged by the SD after the 'Result='
+        # -----------------------------------------------
+        print('Err: ' + fail_txt)
         return 1
     # Don't bother trying to load a tape from a slot that is empty
     # ------------------------------------------------------------
     elif vol[0] == '':
-        log('Slot ' + slt + ' is empty, exiting with return code 1', 20)
+        fail_txt = 'Slot ' + slt + ' is empty. Can\'t load a drive from an empty slot, exiting with return code 1'
+        log(fail_txt, 20)
+        # Printing to stdout here is necessary so
+        # that it is logged by the SD after the 'Result='
+        # -----------------------------------------------
+        print('Err: ' + fail_txt)
         return 1
     else:
         cmd = mtx_bin + ' -f ' + chgr_device + ' load ' + slt + ' ' + drv_idx
@@ -817,12 +830,22 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
     # Don't bother trying to unload an empty drive
     # --------------------------------------------
     if loaded() == '0':
-        log('Can\'t unload a drive that is empty, exiting with return code 1', 20)
+        fail_txt = 'Can\'t unload a drive that is empty, exiting with return code 1'
+        log(fail_txt, 20)
+        # Printing to stdout here is necessary so
+        # that it is logged by the SD after the 'Result='
+        # -----------------------------------------------
+        print('Err: ' + fail_txt)
         return 1
     # Don't bother trying to unload a tape into a full slot
     # -----------------------------------------------------
     elif vol[1] != '':
-        log('Slot ' + slt + ' is full with volume (' + vol[1] + '), exiting with return code 1', 20)
+        fail_txt = 'Slot ' + slt + ' is full with volume (' + vol[1] + '), exiting with return code 1'
+        log(fail_txt, 20)
+        # Printing to stdout here is necessary so
+        # that it is logged by the SD after the 'Result='
+        # -----------------------------------------------
+        print('Err: ' + fail_txt)
         return 1
     else:
         if offline:
@@ -1006,6 +1029,7 @@ log('Config File: ' + config_file, 10, hdr=True)
 log('Config Section: [' + config_section + ']', 10, hdr=True)
 log(('JobId: ' + jobid if jobid not in ('0', None) else ''), 10, hdr=True)
 log(('Job Name: ' + jobname if jobname != None else ''), 10, hdr=True)
+log(('Changer Name: ' + chgr_name if len(chgr_name) != 0 else ''), 10, hdr=True)
 log('Changer Device: ' + chgr_device, 10, hdr=True)
 log('Drive Device: ' + drive_device, 10, hdr=True)
 log('Command: ' + mtx_cmd, 10, hdr=True)
