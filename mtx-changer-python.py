@@ -28,7 +28,7 @@
 #
 # BSD 2-Clause License
 #
-# Copyright (c) 2023-2024, William A. Arlofski waa@revpol.com
+# Copyright (c) 2023-2026, William A. Arlofski waa@revpol.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -119,8 +119,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.33'
-reldate = 'May 13, 2026'
+version = '1.34'
+reldate = 'August 14, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -214,7 +214,7 @@ def print_opt_errors(opt, bin_var=None, tfk=None, tfv=None):
 
 def log_cmd_results(result):
     'Given a subprocess.run() result object, clean up the extra line feeds from stdout and stderr and log them.'
-    log('In function log_cmd_results()', 50)
+    log('In function: log_cmd_results()', 50)
     stdout = result.stdout.rstrip('\n')
     stderr = result.stderr.rstrip('\n')
     if stdout == '':
@@ -339,7 +339,7 @@ def slots():
     return slots
 
 def call_inventory():
-    'Call mtx with the inventory command if the inventory variable is True.'
+    'Call mtx with the inventory command if the \'inventory\' variable is True.'
     log('In function: call_inventory()', 50)
     cmd = mtx_bin + ' -f ' + chgr_device + ' inventory'
     log('mtx command: ' + cmd, 30)
@@ -530,7 +530,7 @@ def wait_for_drive(vol):
         log('Device ' + drive_device + ' (drive index: ' + drive_index + ') not ready, sleeping for one second and retrying...', 30)
         sleep(1)
         s += 1
-    if s == int(load_wait) + 1:
+    if s > int(load_wait):
         log('The maximum \'load_wait\' time of ' + load_wait + ' seconds has been reached', 20)
         log('Timeout waiting for drive device ' + drive_device + ' (drive index: ' + drive_index + ')'
             + ' to signal that it is loaded', 20)
@@ -556,7 +556,7 @@ def chk_for_cln_tapes():
     if len(cln_tapes) > 0:
         log('Found the following cleaning tapes: ' + str(cln_tapes), 20)
     else:
-        log('No cleaning tapes found in library', 20)
+        log('WARN: No cleaning tapes found in library', 20)
     return cln_tapes
 
 def clean(cln_tapes):
@@ -573,7 +573,7 @@ def clean(cln_tapes):
 def get_sg_node():
     'Given a drive_device, return the /dev/sg# node.'
     log('In function: get_sg_node()', 50)
-    log('Determining the tape drive\'s scsi generic device node required by sg_logs', 20)
+    log('Determining the tape drive\'s scsi generic device node required by sg_logs for checking for tape drive alerts', 30)
     if uname == 'Linux':
         # Use `lsscsi` on Linux to always identify the
         # correct scsi generic device node on-the-fly.
@@ -596,7 +596,13 @@ def get_sg_node():
         result = get_shell_result(cmd)
         log_cmd_results(result)
         chk_cmd_result(result, cmd)
-        if '/dev/st' in drive_device or '/dev/nst' in drive_device:
+        # When using the IBM lin_tape driver, there is no /dev/st# node associated to a /dev/sg#
+        # in the `lsscsi -g` output which is how we currently determine a drive's sg# node
+        # --------------------------------------------------------------------------------------
+        if 'IBMtape' in result.stdout.rstrip('\n'):
+            log('Checking for tape drive alerts when using the IBM lin_tape driver is not yet supported ', 20)
+            return 'no_sg'
+        elif '/dev/st' in drive_device or '/dev/nst' in drive_device:
             # OK, we caught the simple /dev/st# or /dev/nst# case
             # ---------------------------------------------------
             st = drive_device
@@ -643,8 +649,8 @@ def get_sg_node():
             log('SG node for drive device: ' + drive_device + ' (drive index: ' + drive_index + ') --> ' + sg, 20)
             return sg
     else:
-        log('Failed to identify an sg node device for drive device ' + drive_device, 20)
-        return 1
+        log('Failed to identify a a supported OS to check the tape drive\'s tape alerts ' + drive_device, 20)
+        return 'no_sg'
 
 def tapealerts(sg):
     'Call the sglogs_bin and return any tape alerts.'
@@ -660,7 +666,8 @@ def tapealerts(sg):
     # Call sg_logs and parse for 'Cleaning action required'
     # -----------------------------------------------------
     # waa - 20260507 - sglogs does not work with lin_tape. I will
-    #                  need a lin_tape specific binary call.
+    #                  need a lin_tape specific binary call. For
+    #                  now we just skip the tapealerts tests.
     # -----------------------------------------------------------
     cmd = sglogs_bin + ' --page=0xc ' + sg
     log('Checking' + ' drive (sg node: ' + sg + ') with sg_logs utility', 20)
@@ -718,25 +725,26 @@ def checkdrive():
         cln_tapes = chk_for_cln_tapes()
         if len(cln_tapes) == 0:
             log('Skipping automatic cleaning', 20)
-            # Return to the unload() function with 1 because we cannot clean a
-            # drive device without a cleaning tape, but the unload() function
-            # that called us has already successfully unloaded the tape before it
-            # called us and it needs to exit cleanly so the SD sees a 0 return code
-            # and can continue.
+            # Return to the unload() function with a generic 'no_sg' because we
+            # cannot clean a drive device without a cleaning tape, but the unload()
+            # function that called us has already successfully unloaded the tapei
+            # before it called us and it needs to exit cleanly so the SD sees a 0
+            # return code and can continue.
             # ---------------------------------------------------------------------
-            return 1
+            return 'no_sg'
 
     # Next, we need the drive device's /dev/sg# node required by sg_logs
     # ------------------------------------------------------------------
     sg = get_sg_node()
-    if sg == 1:
+    if sg == 'no_sg':
         # Return to the unload() function with 1 because we cannot run
         # sg_logs without an sg node, but the unload() function that called
         # us has already successfully unloaded the tape before it called us
         # and it needs to exit cleanly so the SD sees a 0 return code and
         # can continue.
         # -----------------------------------------------------------------
-        return 1
+        log('Skipping tape drive alert tests', 20)
+        return 'no_sg'
 
     # Call the tapealerts() function to
     # check if the drive requires cleaning
@@ -751,7 +759,7 @@ def checkdrive():
         else:
             log('WARN: Drive requires cleaning but the \'auto_clean\' variable is False, skipping cleaning', 20)
     else:
-       log('No \'Cleaning action required\' messages detected', 20)
+       log('No \'Cleaning action required\' tape drive alert messages detected', 20)
     # Now we we need to just return
     # to the unload() function
     # -----------------------------
@@ -824,10 +832,6 @@ def load(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             if int(load_sleep) != 0:
                 log('Sleeping for \'load_sleep\' time of ' + load_sleep + ' seconds to let the drive settle', 20)
                 sleep(int(load_sleep))
-            # TODO: 20240510 - Why did I comment this? lol
-            # elif chk_drive:
-            #     log('The chk_drive variable is True, calling checkdrive() function', 20)
-            #     if checkdrive() == 1:
             return wait_for_drive(vol)
 
 def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
@@ -866,7 +870,7 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
                 + ' offline command before unloading it', 20)
             cmd = mt_bin + ' -f ' + drv_dev + ' offline'
-            log('mt command: ' + cmd, 20)
+            log('mt command: ' + cmd, 30)
             result = get_shell_result(cmd)
             log_cmd_results(result)
             chk_cmd_result(result, cmd)
@@ -908,8 +912,8 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
             if cln:
                 log('A cleaning tape (' + vol[0] + ') was just unloaded, skipping \'Cleaning action required\' checks', 20)
             elif chk_drive:
-                log('The chk_drive variable is True, calling checkdrive() function', 20)
-                if checkdrive() == 1:
+                log('The \'chk_drive\' variable is True, will attempt to check for tape drive alerts', 20)
+                if checkdrive() == 'no_sg':
                     # I think there is nothing to do here. We could not get an sg
                     # node, or there are no cleaning tapes in the library, so we
                     # cannot run sg_logs but the drive has been successfully
@@ -978,7 +982,7 @@ else:
         config = ConfigParser(inline_comment_prefixes=('# ', ';'), interpolation=BasicInterpolation())
         config.read(config_file)
         # Override default 'config_dict' dictionary entries from config
-        # file converting boolean strings into True/False booleans
+        # file, converting boolean strings into True/False booleans
         # -------------------------------------------------------------
         for k, v in config.items(config_section):
             if k in cfg_file_true_false_lst:
