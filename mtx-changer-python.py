@@ -119,8 +119,8 @@ from configparser import ConfigParser, BasicInterpolation
 # Set some variables
 # ------------------
 progname = 'MTX-Changer-Python'
-version = '1.34'
-reldate = 'August 14, 2026'
+version = '1.35'
+reldate = 'October 26, 2026'
 progauthor = 'Bill Arlofski'
 authoremail = 'waa@revpol.com'
 scriptname = 'mtx-changer-python.py'
@@ -232,6 +232,7 @@ def chk_cmd_result(result, cmd):
         return result.returncode
     elif result.returncode != 0:
         log('ERROR calling: ' + cmd, 20)
+        log('ERR: ' + result.stderr.rstrip('\n'), 20)
         # The SD will print this stdout after 'Result=' in the job log
         # ------------------------------------------------------------
         print(result.stderr.rstrip('\n'))
@@ -727,7 +728,7 @@ def checkdrive():
             log('Skipping automatic cleaning', 20)
             # Return to the unload() function with a generic 'no_sg' because we
             # cannot clean a drive device without a cleaning tape, but the unload()
-            # function that called us has already successfully unloaded the tapei
+            # function that called us has already successfully unloaded the tape
             # before it called us and it needs to exit cleanly so the SD sees a 0
             # return code and can continue.
             # ---------------------------------------------------------------------
@@ -867,17 +868,25 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         return 1
     else:
         if offline:
-            log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
-                + ' offline command before unloading it', 20)
-            cmd = mt_bin + ' -f ' + drv_dev + ' offline'
-            log('mt command: ' + cmd, 30)
-            result = get_shell_result(cmd)
-            log_cmd_results(result)
-            chk_cmd_result(result, cmd)
-            if int(offline_sleep) != 0:
-                log('Sleeping for \'offline_sleep\' time of ' + offline_sleep \
-                    + ' seconds to let the drive settle before unloading it', 20)
-                sleep(int(offline_sleep))
+        # waa - 20260921 - In the Quantum lab with an empty drive:
+        #  mt -f /dev/tape/by-id/scsi-3500308c442d85210-nst offline
+        # /dev/tape/by-id/scsi-3500308c442d85210-nst: Input/output error
+        # [root@R730XD-1 log]# echo $?
+        # 2
+            if cln:
+                log('The \'offline\' variable is True but this is a cleaning tape. Not sending offline command.')
+            else
+                log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
+                    + ' offline command before unloading it', 20)
+                cmd = mt_bin + ' -f ' + drv_dev + ' offline'
+                log('mt command: ' + cmd, 30)
+                result = get_shell_result(cmd)
+                log_cmd_results(result)
+                chk_cmd_result(result, cmd)
+                if int(offline_sleep) != 0:
+                    log('Sleeping for \'offline_sleep\' time of ' + offline_sleep \
+                        + ' seconds to let the drive settle before unloading it', 20)
+                    sleep(int(offline_sleep))
         cmd = mtx_bin + ' -f ' + chgr_device + ' unload ' + slt + ' ' + drv_idx
         log('Unloading ' + ('cleaning tape' if cln else 'volume') \
             + (' (' + vol[0] + ') ' if vol[0] != '' else '') + 'from drive device ' \
