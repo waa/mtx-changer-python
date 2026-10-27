@@ -875,7 +875,7 @@ def unload(slt=None, drv_dev=None, drv_idx=None, vol=None, cln=False):
         # 2
             if cln:
                 log('The \'offline\' variable is True but this is a cleaning tape. Not sending offline command.')
-            else
+            else:
                 log('The \'offline\' variable is True. Sending drive device ' + drv_dev \
                     + ' offline command before unloading it', 20)
                 cmd = mt_bin + ' -f ' + drv_dev + ' offline'
