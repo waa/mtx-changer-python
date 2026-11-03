@@ -589,10 +589,10 @@ def get_sg_node():
         # drive_device = '/dev/tape/by-id/scsi-350223344ab000900-nst'
         # drive_device = '/dev/tape/by-path/STK-T10000B-XYZZY_B1-nst'
         # -----------------------------------------------------------
-        # TODO: waa - 20240302 - These lines before the if statement
-        # are not necessary. Probably are here for logging mainly
-        # -----------------------------------------------------------
-        cmd = ls_bin + ' -l ' + drive_device
+        # Resolve persistent paths and other symlinks before matching lsscsi output.
+        real_drive_device = os.path.realpath(drive_device)
+        log('Resolved drive device to ' + real_drive_device, 30)
+        cmd = ls_bin + ' -l ' + real_drive_device
         log('ls command: ' + cmd, 30)
         result = get_shell_result(cmd)
         log_cmd_results(result)
@@ -603,16 +603,12 @@ def get_sg_node():
         if 'IBMtape' in result.stdout.rstrip('\n'):
             log('Checking for tape drive alerts when using the IBM lin_tape driver is not yet supported ', 20)
             return 'no_sg'
-        elif '/dev/st' in drive_device or '/dev/nst' in drive_device:
-            # OK, we caught the simple /dev/st# or /dev/nst# case
-            # ---------------------------------------------------
-            st = drive_device
-        elif '/by-id' in drive_device or '/by-path' in drive_device:
-            # OK, we caught the /dev/tape/by-id or /dev/tape/by-path case
-            # -----------------------------------------------------------
-            # The ls command outputs a line feed that needs to be stripped
-            # ------------------------------------------------------------
-            st = '/dev/' + re.sub(r'.* -> .*/n*(st\d+).*$', '\\1', result.stdout.rstrip('\n'), re.S)
+        elif re.fullmatch(r'/dev/n?st\d+', real_drive_device):
+            # lsscsi lists the rewinding /dev/st# node, even when Bacula uses /dev/nst#.
+            st = real_drive_device.replace('/dev/nst', '/dev/st')
+        else:
+            log('Unable to determine SG node for drive device: ' + real_drive_device, 20)
+            return 'no_sg'
         cmd = lsscsi_bin + ' -g'
         log('lsscsi command: ' + cmd, 30)
         result = get_shell_result(cmd)
